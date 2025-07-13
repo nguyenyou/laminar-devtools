@@ -2277,6 +2277,9 @@
       /** @type {HTMLButtonElement|null} */
       this.settingsButton = null;
 
+      /** @type {HTMLButtonElement|null} */
+      this.refreshButton = null;
+
       /** @type {HTMLDivElement|null} */
       this.settingsPanel = null;
 
@@ -2702,6 +2705,7 @@
         // Reset settings panel state when panel is hidden
         this.settingsPanel = null;
         this.settingsButton = null;
+        this.refreshButton = null;
         this.settingsPanelVisible = false;
         // Remove any lingering click outside listener
         document.removeEventListener('click', this.handleClickOutsideSettings, true);
@@ -2997,6 +3001,69 @@
         this.toggleSettingsPanel();
       });
 
+      // Create refresh button
+      const refreshButton = document.createElement('button');
+      refreshButton.className = 'devtools-tree-refresh';
+      refreshButton.title = 'Refresh component tree';
+
+      // Create refresh icon element that will be animated
+      const refreshIcon = document.createElement('span');
+      refreshIcon.className = 'devtools-tree-refresh-icon';
+      refreshIcon.innerHTML = '↻';
+      refreshIcon.style.cssText = `
+        display: inline-block;
+        transition: transform 0.3s ease;
+      `;
+      refreshButton.appendChild(refreshIcon);
+      refreshButton.style.cssText = `
+        width: var(--tree-close-button-size);
+        height: var(--tree-close-button-size);
+        border: none;
+        background: transparent;
+        color: var(--tree-text-secondary-color);
+        font-size: 16px;
+        line-height: var(--tree-close-button-size);
+        font-weight: 400;
+        cursor: pointer;
+        border-radius: var(--tree-close-button-border-radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: var(--tree-node-transition);
+        opacity: 0.8;
+        font-family: var(--tree-text-font-family);
+      `;
+
+      // Refresh button hover effects
+      refreshButton.addEventListener('mouseenter', () => {
+        refreshButton.style.background = 'var(--tree-close-button-hover-bg)';
+        refreshButton.style.opacity = '1';
+        refreshButton.style.color = 'var(--tree-text-color)';
+      });
+
+      refreshButton.addEventListener('mouseleave', () => {
+        refreshButton.style.background = 'transparent';
+        refreshButton.style.opacity = '0.7';
+        refreshButton.style.color = 'var(--tree-text-secondary-color)';
+      });
+
+      refreshButton.addEventListener('mousedown', () => {
+        refreshButton.style.background = 'var(--tree-close-button-active-bg)';
+      });
+
+      refreshButton.addEventListener('mouseup', () => {
+        refreshButton.style.background = 'var(--tree-close-button-hover-bg)';
+      });
+
+      // Store reference to refresh button
+      this.refreshButton = refreshButton;
+
+      // Add refresh button click handler
+      refreshButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.performFullRefresh();
+      });
+
       // Create close button
       const closeButton = document.createElement('button');
       closeButton.className = 'devtools-tree-close';
@@ -3098,6 +3165,7 @@
       this.treeContainer.addEventListener('keydown', this.handleTreeKeyDown);
 
       // Assemble the header controls
+      headerControls.appendChild(refreshButton);
       headerControls.appendChild(settingsButton);
       headerControls.appendChild(closeButton);
 
@@ -4028,6 +4096,114 @@
         this.selectedNodeId = selectedId;
         this.updateNodeSelection(null, selectedId);
       }
+    }
+
+    /**
+     * Perform a complete refresh of the component tree
+     * Clears all cached data and rebuilds the tree from scratch
+     * @returns {void}
+     */
+    performFullRefresh() {
+      if (!this.isVisible) return;
+
+      try {
+        // Clear all caches and state
+        this.clearAllCaches();
+
+        // Reset tree state
+        this.treeData = null;
+        this.lastComponentsHash = '';
+        this.expandedNodes.clear();
+        this.selectedNodeId = null;
+
+        // Clear selection state
+        this.clearSelection();
+
+        // Force rebuild of tree data
+        this.buildTreeData();
+
+        // Initialize with default expansions
+        this.initializeTreeState();
+
+        // Re-render the tree
+        this.renderTree();
+
+        // Update viewport optimizations if enabled
+        if (this.devtoolsSystem.options.viewportVisibilityFilter) {
+          this.updateViewportOptimizations();
+        }
+
+        // Add visual feedback for the refresh action
+        this.showRefreshFeedback();
+
+      } catch (error) {
+        console.error('Error performing full refresh:', error);
+      }
+    }
+
+    /**
+     * Clear all caches used by the component tree
+     * @returns {void}
+     */
+    clearAllCaches() {
+      // Clear tree-specific caches
+      this.nodeCache.clear();
+      this.renderCache.clear();
+
+      // Clear viewport detector caches
+      if (this.viewportDetector) {
+        this.viewportDetector.clearCache();
+      }
+
+      // Clear devtools system caches if available
+      if (this.devtoolsSystem.overlay && this.devtoolsSystem.overlay.styleManager) {
+        this.devtoolsSystem.overlay.styleManager.clearCache();
+      }
+
+      if (this.devtoolsSystem.tooltip && this.devtoolsSystem.tooltip.styleManager) {
+        this.devtoolsSystem.tooltip.styleManager.clearCache();
+      }
+    }
+
+    /**
+     * Show visual feedback for refresh action
+     * @returns {void}
+     */
+    showRefreshFeedback() {
+      if (!this.refreshButton) return;
+
+      // Find the refresh icon within the button
+      const refreshIcon = this.refreshButton.querySelector('.devtools-tree-refresh-icon');
+      if (!refreshIcon) return;
+
+      // Add a single 360-degree clockwise rotation animation to only the refresh icon
+      const htmlRefreshIcon = /** @type {HTMLElement} */ (refreshIcon);
+
+      // Reset to starting position without transition
+      htmlRefreshIcon.style.transition = 'none';
+      htmlRefreshIcon.style.transform = 'rotate(0deg)';
+
+      // Force a reflow to ensure the reset is applied
+      htmlRefreshIcon.offsetHeight;
+
+      // Apply the rotation animation
+      htmlRefreshIcon.style.transition = 'transform 0.3s ease';
+      htmlRefreshIcon.style.transform = 'rotate(360deg)';
+
+      // After animation completes, reset to 0deg without transition (360deg = 0deg visually)
+      setTimeout(() => {
+        if (htmlRefreshIcon) {
+          htmlRefreshIcon.style.transition = 'none';
+          htmlRefreshIcon.style.transform = 'rotate(0deg)';
+
+          // Restore the transition for future animations
+          setTimeout(() => {
+            if (htmlRefreshIcon) {
+              htmlRefreshIcon.style.transition = 'transform 0.3s ease';
+            }
+          }, 10);
+        }
+      }, 300);
     }
 
     /**
