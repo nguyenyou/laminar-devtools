@@ -2699,6 +2699,13 @@
           this.headerElement = null;
         }
 
+        // Reset settings panel state when panel is hidden
+        this.settingsPanel = null;
+        this.settingsButton = null;
+        this.settingsPanelVisible = false;
+        // Remove any lingering click outside listener
+        document.removeEventListener('click', this.handleClickOutsideSettings, true);
+
         this.isVisible = false;
         this.selectedNodeId = null;
 
