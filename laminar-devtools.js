@@ -1,20 +1,3 @@
-/**
- * Laminar Devtools
- *
- * This module provides visual overlay functionality for Scala source code navigation.
- * When Alt key is pressed, it highlights DOM elements that have source path information
- * and allows clicking to open the corresponding source file in the configured IDE.
- *
- * Architecture: Class-based design with clear separation of concerns
- * - DevtoolsState: State management with observer pattern
- * - StyleManager: CSS custom properties and styling
- * - OverlayManager: Overlay creation and positioning
- * - TooltipManager: Tooltip functionality
- * - KeyboardNavigator: Keyboard navigation logic
- * - EventManager: Event listener management
- * - DevtoolsSystem: Main orchestrator class
- */
-
 (function() {
   'use strict';
 
