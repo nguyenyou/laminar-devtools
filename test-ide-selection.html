@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDE Selection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        .test-button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #005a9e;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #2d5a2d;
+            border: 1px solid #4a8a4a;
+        }
+        .status.error {
+            background: #5a2d2d;
+            border: 1px solid #8a4a4a;
+        }
+        .component-example {
+            width: 300px;
+            height: 200px;
+            border: 2px solid #007acc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            background: #333;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>IDE Selection Feature Test</h1>
+        
+        <div class="test-section">
+            <h2>1. PersistentStorage Test</h2>
+            <button class="test-button" onclick="testPersistentStorage()">Test PersistentStorage</button>
+            <div id="storage-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>2. IDE Selection Test</h2>
+            <p>Current IDE: <span id="current-ide">Loading...</span></p>
+            <button class="test-button" onclick="setIDE('idea')">Set to IntelliJ IDEA</button>
+            <button class="test-button" onclick="setIDE('vscode')">Set to VS Code</button>
+            <button class="test-button" onclick="setIDE('cursor')">Set to Cursor</button>
+            <button class="test-button" onclick="setIDE('windsurf')">Set to Windsurf</button>
+            <div id="ide-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. File Opening Test</h2>
+            <p>Click the button below to test opening a file with the selected IDE:</p>
+            <button class="test-button" onclick="testFileOpening()">Test File Opening</button>
+            <div id="file-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>4. Component with Source Location</h2>
+            <p>This component has mock source location data. Hold Alt and hover over it to see the devtools in action:</p>
+            <div class="component-example" 
+                 data-source-path="www/src/www/components/TestComponent.scala:15"
+                 __scalasourcepath="www/src/www/components/TestComponent.scala"
+                 __scalasourceline="15"
+                 __scalafilename="TestComponent.scala">
+                Test Component<br>
+                <small>Hold Alt + Hover</small>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>5. Settings Panel Access</h2>
+            <p>Instructions:</p>
+            <ol>
+                <li>Hold Alt and hover over the test component above</li>
+                <li>Press Ctrl+Shift+L to open the component tree</li>
+                <li>Click the settings (⚙️) button in the top-right of the panel</li>
+                <li>Look for the "Preferred IDE" dropdown</li>
+                <li>Change the selection and verify it persists</li>
+            </ol>
+        </div>
+    </div>
+
+    <script src="./laminar-devtools.js"></script>
+    <script>
+        // Test functions
+        function testPersistentStorage() {
+            const statusEl = document.getElementById('storage-status');
+            try {
+                // Test basic operations
+                const testKey = 'test-key';
+                const testValue = { message: 'Hello, World!', number: 42 };
+                
+                // Test set and get
+                const setResult = PersistentStorage.set(testKey, testValue);
+                const getValue = PersistentStorage.get(testKey);
+                
+                // Test string operations
+                const stringResult = PersistentStorage.setString('test-string', 'hello');
+                const stringValue = PersistentStorage.getString('test-string');
+                
+                // Test has
+                const hasResult = PersistentStorage.has(testKey);
+                
+                // Cleanup
+                PersistentStorage.remove(testKey);
+                PersistentStorage.remove('test-string');
+                
+                if (setResult && JSON.stringify(getValue) === JSON.stringify(testValue) && 
+                    stringResult && stringValue === 'hello' && hasResult) {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = '✓ PersistentStorage is working correctly!';
+                } else {
+                    throw new Error('Test values do not match');
+                }
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = '✗ PersistentStorage test failed: ' + error.message;
+            }
+        }
+
+        function updateCurrentIDE() {
+            const currentIDE = PersistentStorage.getString('devtools_prefer_ide_protocol', 'idea');
+            document.getElementById('current-ide').textContent = currentIDE;
+        }
+
+        function setIDE(ide) {
+            const statusEl = document.getElementById('ide-status');
+            try {
+                PersistentStorage.setString('devtools_prefer_ide_protocol', ide);
+                updateCurrentIDE();
+                statusEl.className = 'status success';
+                statusEl.textContent = `✓ IDE preference set to: ${ide}`;
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = '✗ Failed to set IDE: ' + error.message;
+            }
+        }
+
+        function testFileOpening() {
+            const statusEl = document.getElementById('file-status');
+            try {
+                // This will attempt to open a test file
+                const testPath = 'www/src/www/components/TestComponent.scala';
+                const testLine = '15';
+                
+                // Note: This will actually try to open the IDE, so it might show a "protocol not supported" error
+                // in browsers that don't have the IDE installed, but that's expected behavior
+                openFileAtSourcePath(testPath, testLine);
+                
+                const currentIDE = PersistentStorage.getString('devtools_prefer_ide_protocol', 'idea');
+                statusEl.className = 'status success';
+                statusEl.textContent = `✓ Attempted to open file in ${currentIDE}. Check if your IDE opened the file.`;
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = '✗ File opening test failed: ' + error.message;
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCurrentIDE();
+        });
+    </script>
+</body>
+</html>

@@ -339,6 +339,112 @@
   injectDevtoolsCSSVariables();
 
   // ============================================================================
+  // PERSISTENT STORAGE CLASS
+  // ============================================================================
+
+  /**
+   * Centralized localStorage operations with automatic JSON serialization and error handling
+   * @class PersistentStorage
+   */
+  class PersistentStorage {
+    /**
+     * Get a value from localStorage with automatic JSON parsing
+     * @param {string} key - Storage key
+     * @param {*} defaultValue - Default value if key doesn't exist or parsing fails
+     * @returns {*} Parsed value or default value
+     */
+    static get(key, defaultValue = null) {
+      try {
+        const item = window.localStorage.getItem(key);
+        if (item === null) {
+          return defaultValue;
+        }
+        return JSON.parse(item);
+      } catch (error) {
+        console.warn(`Error reading from localStorage key "${key}":`, error);
+        return defaultValue;
+      }
+    }
+
+    /**
+     * Set a value in localStorage with automatic JSON serialization
+     * @param {string} key - Storage key
+     * @param {*} value - Value to store
+     * @returns {boolean} True if successful, false otherwise
+     */
+    static set(key, value) {
+      try {
+        window.localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (error) {
+        console.warn(`Error writing to localStorage key "${key}":`, error);
+        return false;
+      }
+    }
+
+    /**
+     * Remove a value from localStorage
+     * @param {string} key - Storage key
+     * @returns {boolean} True if successful, false otherwise
+     */
+    static remove(key) {
+      try {
+        window.localStorage.removeItem(key);
+        return true;
+      } catch (error) {
+        console.warn(`Error removing localStorage key "${key}":`, error);
+        return false;
+      }
+    }
+
+    /**
+     * Check if a key exists in localStorage
+     * @param {string} key - Storage key
+     * @returns {boolean} True if key exists, false otherwise
+     */
+    static has(key) {
+      try {
+        return window.localStorage.getItem(key) !== null;
+      } catch (error) {
+        console.warn(`Error checking localStorage key "${key}":`, error);
+        return false;
+      }
+    }
+
+    /**
+     * Get a string value from localStorage (for backward compatibility)
+     * @param {string} key - Storage key
+     * @param {string} defaultValue - Default value if key doesn't exist
+     * @returns {string} String value or default value
+     */
+    static getString(key, defaultValue = '') {
+      try {
+        const item = window.localStorage.getItem(key);
+        return item !== null ? item : defaultValue;
+      } catch (error) {
+        console.warn(`Error reading string from localStorage key "${key}":`, error);
+        return defaultValue;
+      }
+    }
+
+    /**
+     * Set a string value in localStorage (for backward compatibility)
+     * @param {string} key - Storage key
+     * @param {string} value - String value to store
+     * @returns {boolean} True if successful, false otherwise
+     */
+    static setString(key, value) {
+      try {
+        window.localStorage.setItem(key, value);
+        return true;
+      } catch (error) {
+        console.warn(`Error writing string to localStorage key "${key}":`, error);
+        return false;
+      }
+    }
+  }
+
+  // ============================================================================
   // CONSTANTS AND CONFIGURATION
   // ============================================================================
 
@@ -346,10 +452,7 @@
   const PREFER_IDE_KEY = "devtools_prefer_ide_protocol";
 
   /** @type {string} Currently preferred IDE protocol */
-  const PREFER_IDE_PROTOCOL = window.localStorage.getItem(PREFER_IDE_KEY) || "idea";
-
-  /** @type {string} Local storage key for component tree auto-open setting */
-  const COMPONENT_TREE_AUTO_OPEN_KEY = "devtools_component_tree_auto_open";
+  const PREFER_IDE_PROTOCOL = PersistentStorage.getString(PREFER_IDE_KEY, "idea");
 
   /** @type {string} Local storage key for viewport visibility filter setting */
   const VIEWPORT_VISIBILITY_FILTER_KEY = "devtools_viewport_visibility_filter";
@@ -2513,19 +2616,13 @@
      * @returns {{x: number, y: number}} Position object with x and y coordinates
      */
     getSavedPosition() {
-      try {
-        const saved = localStorage.getItem('componentTreePanel.position');
-        if (saved) {
-          const position = JSON.parse(saved);
-          // Validate position values
-          if (typeof position.x === 'number' && typeof position.y === 'number' &&
-              position.x >= 0 && position.y >= 0 &&
-              position.x < window.innerWidth && position.y < window.innerHeight) {
-            return position;
-          }
-        }
-      } catch (error) {
-        console.warn('Error loading saved panel position:', error);
+      const position = PersistentStorage.get('componentTreePanel.position');
+
+      // Validate position values
+      if (position && typeof position.x === 'number' && typeof position.y === 'number' &&
+          position.x >= 0 && position.y >= 0 &&
+          position.x < window.innerWidth && position.y < window.innerHeight) {
+        return position;
       }
 
       // Return default position (top-right with 8px offset)
@@ -2541,11 +2638,7 @@
      * @param {number} y - Y coordinate
      */
     savePosition(x, y) {
-      try {
-        localStorage.setItem('componentTreePanel.position', JSON.stringify({ x, y }));
-      } catch (error) {
-        console.warn('Error saving panel position:', error);
-      }
+      PersistentStorage.set('componentTreePanel.position', { x, y });
     }
 
     /**
@@ -2553,19 +2646,13 @@
      * @returns {{width: number, height: number}} Size object with width and height
      */
     getSavedSize() {
-      try {
-        const saved = localStorage.getItem('componentTreePanel.size');
-        if (saved) {
-          const size = JSON.parse(saved);
-          // Validate size values with min/max constraints
-          if (typeof size.width === 'number' && typeof size.height === 'number' &&
-              size.width >= 300 && size.height >= 400 &&
-              size.width <= window.innerWidth && size.height <= window.innerHeight) {
-            return size;
-          }
-        }
-      } catch (error) {
-        console.warn('Error loading saved panel size:', error);
+      const size = PersistentStorage.get('componentTreePanel.size');
+
+      // Validate size values with min/max constraints
+      if (size && typeof size.width === 'number' && typeof size.height === 'number' &&
+          size.width >= 300 && size.height >= 400 &&
+          size.width <= window.innerWidth && size.height <= window.innerHeight) {
+        return size;
       }
 
       // Return default size
@@ -2581,11 +2668,7 @@
      * @param {number} height - Panel height
      */
     saveSize(width, height) {
-      try {
-        localStorage.setItem('componentTreePanel.size', JSON.stringify({ width, height }));
-      } catch (error) {
-        console.warn('Error saving panel size:', error);
-      }
+      PersistentStorage.set('componentTreePanel.size', { width, height });
     }
 
     /**
@@ -4647,12 +4730,75 @@
         border-radius: var(--tree-node-border-radius);
         box-shadow: var(--tree-panel-shadow);
         padding: 12px;
-        min-width: 200px;
+        min-width: 220px;
         z-index: calc(var(--tree-panel-z-index) + 1);
         display: none;
         font-family: var(--tree-text-font-family);
         font-size: var(--tree-text-font-size);
       `;
+
+      // Create IDE selection setting
+      const ideSelectionContainer = document.createElement('div');
+      ideSelectionContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      `;
+
+      const ideSelectionLabel = document.createElement('div');
+      ideSelectionLabel.textContent = 'Preferred IDE';
+      ideSelectionLabel.title = 'Select your preferred IDE for opening source files';
+      ideSelectionLabel.style.cssText = `
+        color: var(--tree-text-color);
+        font-size: 12px;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      `;
+
+      const ideSelectionDropdown = document.createElement('select');
+      ideSelectionDropdown.name = "preferredIDE";
+      ideSelectionDropdown.style.cssText = `
+        background: var(--tree-panel-bg);
+        border: 1px solid rgba(240, 246, 252, 0.2);
+        border-radius: 4px;
+        color: var(--tree-text-color);
+        font-size: 11px;
+        padding: 4px 8px;
+        cursor: pointer;
+        min-width: 80px;
+      `;
+
+      // Add IDE options
+      const ideOptions = [
+        { value: 'idea', label: 'IntelliJ IDEA' },
+        { value: 'vscode', label: 'VS Code' },
+        { value: 'cursor', label: 'Cursor' },
+        { value: 'windsurf', label: 'Windsurf' }
+      ];
+
+      ideOptions.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        optionElement.selected = option.value === PREFER_IDE_PROTOCOL;
+        ideSelectionDropdown.appendChild(optionElement);
+      });
+
+      // Add change handler for IDE selection
+      ideSelectionDropdown.addEventListener('change', (e) => {
+        const selectedIDE = /** @type {HTMLSelectElement} */ (e.target).value;
+        if (EDITOR_PROTOCOL[/** @type {keyof typeof EDITOR_PROTOCOL} */ (selectedIDE)]) {
+          PersistentStorage.setString(PREFER_IDE_KEY, selectedIDE);
+          // Note: The preference will take effect on next page load or when openFileAtSourcePath is called
+        }
+      });
+
+      ideSelectionLabel.appendChild(ideSelectionDropdown);
+      ideSelectionContainer.appendChild(ideSelectionLabel);
+      this.settingsPanel.appendChild(ideSelectionContainer);
 
       // Create viewport visibility filter setting
       const viewportFilterContainer = document.createElement('div');
@@ -4688,7 +4834,7 @@
       viewportFilterToggle.addEventListener('change', (e) => {
         const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
         this.devtoolsSystem.options.viewportVisibilityFilter = enabled;
-        localStorage.setItem(VIEWPORT_VISIBILITY_FILTER_KEY, enabled.toString());
+        PersistentStorage.setString(VIEWPORT_VISIBILITY_FILTER_KEY, enabled.toString());
 
         // Update viewport monitoring
         this.updateViewportMonitoring(enabled);
@@ -4736,7 +4882,7 @@
       initialIsOpenToggle.addEventListener('change', (e) => {
         const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
         this.devtoolsSystem.options.initialIsOpen = enabled;
-        localStorage.setItem(INITIAL_IS_OPEN_KEY, enabled.toString());
+        PersistentStorage.setString(INITIAL_IS_OPEN_KEY, enabled.toString());
       });
 
       initialIsOpenLabel.appendChild(initialIsOpenToggle);
@@ -5088,7 +5234,7 @@
      */
     exportConfig() {
       return {
-        preferredIDE: PREFER_IDE_PROTOCOL,
+        preferredIDE: PersistentStorage.getString(PREFER_IDE_KEY, "idea"),
         viewportVisibilityFilter: getViewportVisibilityFilter(),
         initialIsOpen: getInitialIsOpen(),
         options: { ...this.options }
@@ -5102,17 +5248,16 @@
      */
     importConfig(config) {
       if (config.preferredIDE && EDITOR_PROTOCOL[/** @type {keyof typeof EDITOR_PROTOCOL} */ (config.preferredIDE)]) {
-        localStorage.setItem(PREFER_IDE_KEY, config.preferredIDE);
+        PersistentStorage.setString(PREFER_IDE_KEY, config.preferredIDE);
       }
 
-
       if (typeof config.viewportVisibilityFilter === 'boolean') {
-        localStorage.setItem(VIEWPORT_VISIBILITY_FILTER_KEY, config.viewportVisibilityFilter.toString());
+        PersistentStorage.setString(VIEWPORT_VISIBILITY_FILTER_KEY, config.viewportVisibilityFilter.toString());
         this.options.viewportVisibilityFilter = config.viewportVisibilityFilter;
       }
 
       if (typeof config.initialIsOpen === 'boolean') {
-        localStorage.setItem(INITIAL_IS_OPEN_KEY, config.initialIsOpen.toString());
+        PersistentStorage.setString(INITIAL_IS_OPEN_KEY, config.initialIsOpen.toString());
         this.options.initialIsOpen = config.initialIsOpen;
       }
 
@@ -5205,9 +5350,11 @@
    * @returns {void}
    */
   function openFileAtSourcePath(sourcePath, sourceLine) {
-    let uri = `${EDITOR_PROTOCOL[/** @type {keyof typeof EDITOR_PROTOCOL} */ (PREFER_IDE_PROTOCOL)]}${sourcePath}`;
+    // Get current IDE preference dynamically
+    const currentIDE = PersistentStorage.getString(PREFER_IDE_KEY, "idea");
+    let uri = `${EDITOR_PROTOCOL[/** @type {keyof typeof EDITOR_PROTOCOL} */ (currentIDE)]}${sourcePath}`;
     if(sourceLine) {
-      if(PREFER_IDE_PROTOCOL === "idea") {
+      if(currentIDE === "idea") {
         uri += `&line=${sourceLine}`;
       } else {
         uri += `:${sourceLine}`;
@@ -5240,7 +5387,7 @@
    * @returns {boolean} Whether to filter tree nodes based on viewport visibility
    */
   function getViewportVisibilityFilter() {
-    const stored = window.localStorage.getItem(VIEWPORT_VISIBILITY_FILTER_KEY);
+    const stored = PersistentStorage.getString(VIEWPORT_VISIBILITY_FILTER_KEY, "false");
     return stored === "true";
   }
 
@@ -5249,7 +5396,7 @@
    * @returns {boolean} Whether to open devtools panel by default when page loads
    */
   function getInitialIsOpen() {
-    const stored = window.localStorage.getItem(INITIAL_IS_OPEN_KEY);
+    const stored = PersistentStorage.getString(INITIAL_IS_OPEN_KEY, "false");
     return stored === "true";
   }
 
