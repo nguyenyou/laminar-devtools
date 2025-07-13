@@ -1,5 +1,5 @@
 /**
- * Scala Source Devtools
+ * Laminar Devtools
  *
  * This module provides visual overlay functionality for Scala source code navigation.
  * When Alt key is pressed, it highlights DOM elements that have source path information
