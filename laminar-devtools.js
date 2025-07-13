@@ -60,7 +60,6 @@
   /**
    * @typedef {Object} DevtoolsOptions
    * @property {boolean} enableKeyboardNavigation - Enable keyboard navigation
-   * @property {boolean} componentTreeAutoOpen - Auto-open component tree on page load
    * @property {boolean} viewportVisibilityFilter - Filter tree nodes based on viewport visibility
    * @property {boolean} initialIsOpen - Open devtools panel by default when page loads
    */
@@ -68,7 +67,6 @@
   /**
    * @typedef {Object} DevtoolsConfig
    * @property {string} [preferredIDE] - Preferred IDE protocol
-   * @property {boolean} [componentTreeAutoOpen] - Auto-open component tree on page load
    * @property {boolean} [viewportVisibilityFilter] - Filter tree nodes based on viewport visibility
    * @property {boolean} [initialIsOpen] - Open devtools panel by default when page loads
    * @property {Partial<DevtoolsOptions>} [options] - Devtools options
@@ -758,7 +756,6 @@
       }
 
       const div = document.createElement("div");
-      div.id = "devtools-overlay";
 
       // Apply base styles
       const baseStyles = this.styleManager.getOverlayStyles('normal');
@@ -1059,7 +1056,6 @@
       }
 
       const tooltip = document.createElement("div");
-      tooltip.id = "devtools-tooltip";
 
       // Apply base styles
       const styles = this.styleManager.getTooltipStyles();
@@ -2874,7 +2870,6 @@
 
       // Create main panel container
       this.panelElement = document.createElement('div');
-      this.panelElement.className = 'devtools-tree-panel';
       this.panelElement.style.cssText = `
         position: fixed;
         left: ${savedPosition.x}px;
@@ -2901,7 +2896,6 @@
 
       // Create header (draggable)
       const header = document.createElement('div');
-      header.className = 'devtools-tree-header';
       header.style.cssText = `
         height: var(--tree-header-height);
         background: var(--tree-header-bg);
@@ -2926,7 +2920,6 @@
 
       // Create title
       const title = document.createElement('div');
-      title.className = 'devtools-tree-title';
       title.textContent = 'Laminar DevTools';
       title.style.cssText = `
         font-weight: 600;
@@ -2939,7 +2932,6 @@
 
       // Create header controls container
       const headerControls = document.createElement('div');
-      headerControls.className = 'devtools-tree-header-controls';
       headerControls.style.cssText = `
         display: flex;
         align-items: center;
@@ -2948,7 +2940,6 @@
 
       // Create settings button
       const settingsButton = document.createElement('button');
-      settingsButton.className = 'devtools-tree-settings';
       settingsButton.title = 'Settings';
       settingsButton.style.cssText = `
         width: var(--tree-close-button-size);
@@ -3011,12 +3002,10 @@
 
       // Create refresh button
       const refreshButton = document.createElement('button');
-      refreshButton.className = 'devtools-tree-refresh';
       refreshButton.title = 'Refresh component tree';
 
       // Create refresh icon element that will be animated
       const refreshIcon = document.createElement('span');
-      refreshIcon.className = 'devtools-tree-refresh-icon';
       refreshIcon.innerHTML = '↻';
       refreshIcon.style.cssText = `
         display: inline-block;
@@ -3074,7 +3063,6 @@
 
       // Create close button
       const closeButton = document.createElement('button');
-      closeButton.className = 'devtools-tree-close';
       closeButton.innerHTML = '✕';
       closeButton.style.cssText = `
         width: var(--tree-close-button-size);
@@ -3121,7 +3109,6 @@
 
       // Create React DevTools-style tree container
       this.treeContainer = document.createElement('div');
-      this.treeContainer.className = 'devtools-tree-container';
       this.treeContainer.tabIndex = 0; // Make focusable for keyboard navigation
       this.treeContainer.style.cssText = `
         flex: 1;
@@ -3143,7 +3130,6 @@
 
       // Add webkit scrollbar styles for better cross-browser support
       const scrollbarStyle = document.createElement('style');
-      scrollbarStyle.id = 'devtools-tree-scrollbar-styles';
       scrollbarStyle.textContent = `
         .devtools-tree-container::-webkit-scrollbar {
           width: var(--tree-scrollbar-width);
@@ -3212,26 +3198,46 @@
         });
       }
 
-      // If no components found or no visible components, show message
+      // If no components found or no visible components, show a Refresh Tree button instead
       if (this.treeData.length === 0 || this.treeContainer.children.length === 0) {
-        const emptyMessage = document.createElement('div');
-        emptyMessage.className = 'devtools-tree-empty';
+        const refreshButton = document.createElement('button');
+        refreshButton.textContent = 'Refresh Tree';
 
-        if (this.devtoolsSystem.options.viewportVisibilityFilter && this.treeData.length > 0) {
-          emptyMessage.textContent = 'No visible components found. Hit refresh button to try again.';
-        } else {
-          emptyMessage.textContent = 'No components found. Hit refresh button to try again.';
-        }
-
-        emptyMessage.style.cssText = `
-          padding: 32px 20px;
-          text-align: center;
-          color: var(--tree-text-muted-color);
-          font-style: italic;
+        refreshButton.style.cssText = `
+          padding: 8px 14px;
+          margin: 32px auto;
+          display: block;
+          background: var(--tree-close-button-hover-bg);
+          color: var(--tree-text-color);
+          border: 1px solid var(--tree-close-button-active-bg);
+          border-radius: var(--tree-node-border-radius);
+          cursor: pointer;
           font-size: 13px;
-          line-height: 1.5;
+          font-family: var(--tree-text-font-family);
+          transition: background 0.15s ease, border-color 0.15s ease;
         `;
-        this.treeContainer.appendChild(emptyMessage);
+
+        refreshButton.addEventListener('mouseenter', () => {
+          refreshButton.style.background = 'var(--tree-close-button-active-bg)';
+        });
+
+        refreshButton.addEventListener('mouseleave', () => {
+          refreshButton.style.background = 'var(--tree-close-button-hover-bg)';
+        });
+
+        refreshButton.addEventListener('click', () => {
+          this.performFullRefresh();
+        });
+
+        const refreshButtonContainer = document.createElement('div');
+        refreshButtonContainer.style.cssText = `  
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100%;
+        `;
+        refreshButtonContainer.appendChild(refreshButton);
+        this.treeContainer.appendChild(refreshButtonContainer);
       }
     }
 
@@ -3255,7 +3261,6 @@
 
       // Create simple node element
       const nodeElement = document.createElement('div');
-      nodeElement.className = 'devtools-tree-node';
       nodeElement.dataset.nodeId = node.id;
       nodeElement.style.cssText = `
         display: flex;
@@ -3297,7 +3302,6 @@
 
       // Create simple expand/collapse triangle (only for nodes with children)
       const expandIcon = document.createElement('span');
-      expandIcon.className = 'devtools-tree-expand-icon';
       expandIcon.style.cssText = `
         width: var(--tree-icon-size);
         height: var(--tree-icon-size);
@@ -3341,7 +3345,6 @@
       // Create simple text content - just the component name
       const componentName = this.getComponentDisplayName(node);
       const nameElement = document.createElement('span');
-      nameElement.className = 'devtools-tree-name';
       nameElement.style.cssText = `
         color: var(--tree-component-name-color);
         font-weight: 400;
@@ -4221,7 +4224,6 @@
       if (!this.treeContainer) return;
 
       const shortcutsInfo = document.createElement('div');
-      shortcutsInfo.className = 'devtools-tree-shortcuts';
       shortcutsInfo.style.cssText = `
         padding: 12px 16px;
         background: rgba(240, 246, 252, 0.03);
@@ -4248,13 +4250,8 @@
     addResizeHandles() {
       if (!this.panelElement) return;
 
-      // Remove any existing handles (in case this is called after a refresh)
-      const existing = this.panelElement.querySelectorAll('.devtools-tree-resize-handle');
-      existing.forEach(el => el.remove());
-
       // Create a single bottom-right resize control
       const handle = document.createElement('div');
-      handle.className = 'devtools-tree-resize-handle devtools-tree-resize-bottom-right';
       handle.dataset.direction = 'bottom-right';
 
       // Style: curved L-shape line with extra gap, thicker & lighter border for visibility
@@ -4641,7 +4638,6 @@
       }
 
       this.settingsPanel = document.createElement('div');
-      this.settingsPanel.className = 'devtools-tree-settings-panel';
       this.settingsPanel.style.cssText = `
         position: absolute;
         top: calc(var(--tree-header-height) - 2px);
@@ -4960,7 +4956,6 @@
       /** @type {DevtoolsOptions} Configuration options */
       this.options = {
         enableKeyboardNavigation: true,
-        componentTreeAutoOpen: getComponentTreeAutoOpen(),
         viewportVisibilityFilter: getViewportVisibilityFilter(),
         initialIsOpen: getInitialIsOpen(),
         ...options
@@ -4977,22 +4972,13 @@
     initialize() {
       // CSS variables are already injected at module load
       // Event listeners are already set up by EventManager
-      console.log('DevtoolsSystem initialized with class-based architecture');
-
-      // Auto-open component tree if configured (legacy setting)
-      if (this.options.componentTreeAutoOpen) {
-        // Use a small delay to ensure DOM is ready and avoid blocking initialization
-        setTimeout(() => {
-          this.treeView.show();
-        }, 100);
-      }
 
       // Auto-open panel if initial is open setting is enabled
       if (this.options.initialIsOpen) {
         // Use a small delay to ensure DOM is ready and avoid blocking initialization
         setTimeout(() => {
           this.treeView.show();
-        }, 100);
+        }, 3000);
       }
     }
 
@@ -5103,7 +5089,6 @@
     exportConfig() {
       return {
         preferredIDE: PREFER_IDE_PROTOCOL,
-        componentTreeAutoOpen: getComponentTreeAutoOpen(),
         viewportVisibilityFilter: getViewportVisibilityFilter(),
         initialIsOpen: getInitialIsOpen(),
         options: { ...this.options }
@@ -5120,12 +5105,6 @@
         localStorage.setItem(PREFER_IDE_KEY, config.preferredIDE);
       }
 
-
-
-      if (typeof config.componentTreeAutoOpen === 'boolean') {
-        localStorage.setItem(COMPONENT_TREE_AUTO_OPEN_KEY, config.componentTreeAutoOpen.toString());
-        this.options.componentTreeAutoOpen = config.componentTreeAutoOpen;
-      }
 
       if (typeof config.viewportVisibilityFilter === 'boolean') {
         localStorage.setItem(VIEWPORT_VISIBILITY_FILTER_KEY, config.viewportVisibilityFilter.toString());
@@ -5257,15 +5236,6 @@
   }
 
   /**
-   * Get the configured component tree auto-open setting
-   * @returns {boolean} Whether to auto-open component tree on page load
-   */
-  function getComponentTreeAutoOpen() {
-    const stored = window.localStorage.getItem(COMPONENT_TREE_AUTO_OPEN_KEY);
-    return stored === "true";
-  }
-
-  /**
    * Get the configured viewport visibility filter setting
    * @returns {boolean} Whether to filter tree nodes based on viewport visibility
    */
@@ -5287,24 +5257,15 @@
   // INITIALIZATION
   // ============================================================================
 
-  /** @type {DevtoolsSystem|null} Global instance for backward compatibility */
-  let globalDevtoolsSystem = null;
-
   /**
    * Initialize the new class-based devtools system
    * @returns {void}
    */
   function initializeDevtoolsSystem() {
     try {
-      globalDevtoolsSystem = new DevtoolsSystem({
+      new DevtoolsSystem({
         enableKeyboardNavigation: true
       });
-
-      // Expose global instance for debugging and external access
-      if (typeof window !== 'undefined') {
-        // @ts-ignore - Adding to window for debugging
-        window.DevtoolsSystem = globalDevtoolsSystem;
-      }
 
       console.log('✅ Laminar Devtools initialized');
     } catch (error) {
