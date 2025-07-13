@@ -33,20 +33,9 @@
    * @property {number} level - Depth level in tree
    */
 
-  /**
-   * @typedef {Object} ComponentResult
-   * @property {ComponentInfo[]} components - Array of component information
-   * @property {number} totalCount - Total count of components (including overflow)
-   * @property {Element} [currentElement] - Current target element (for siblings only)
-   */
 
-  /**
-   * @typedef {Object} HierarchicalInfo
-   * @property {ComponentInfo[]} parents - Parent components (up to 3 levels)
-   * @property {ComponentResult} children - Child components with overflow info
-   * @property {ComponentResult} siblings - Sibling components with overflow info
-   * @property {boolean} hasContent - Whether any hierarchical content exists
-   */
+
+
 
   /**
    * @typedef {Object} Position
@@ -75,7 +64,6 @@
   /**
    * @typedef {Object} DevtoolsOptions
    * @property {boolean} enableKeyboardNavigation - Enable keyboard navigation
-   * @property {boolean} enableHierarchicalTooltips - Enable hierarchical tooltips
    * @property {boolean} componentTreeAutoOpen - Auto-open component tree on page load
    * @property {boolean} viewportVisibilityFilter - Filter tree nodes based on viewport visibility
    * @property {boolean} initialIsOpen - Open devtools panel by default when page loads
@@ -84,7 +72,6 @@
   /**
    * @typedef {Object} DevtoolsConfig
    * @property {string} [preferredIDE] - Preferred IDE protocol
-   * @property {number} [hierarchicalTooltipParentCount] - Number of parent components to show
    * @property {boolean} [componentTreeAutoOpen] - Auto-open component tree on page load
    * @property {boolean} [viewportVisibilityFilter] - Filter tree nodes based on viewport visibility
    * @property {boolean} [initialIsOpen] - Open devtools panel by default when page loads
@@ -371,9 +358,6 @@
   /** @type {string} Currently preferred IDE protocol */
   const PREFER_IDE_PROTOCOL = window.localStorage.getItem(PREFER_IDE_KEY) || "idea";
 
-  /** @type {string} Local storage key for extra info tooltip count */
-  const EXTRA_INFO_TOOLTIP_COUNT_KEY = "devtools_extra_info_tooltip_count";
-
   /** @type {string} Local storage key for component tree auto-open setting */
   const COMPONENT_TREE_AUTO_OPEN_KEY = "devtools_component_tree_auto_open";
 
@@ -382,12 +366,6 @@
 
   /** @type {string} Local storage key for initial panel open setting */
   const INITIAL_IS_OPEN_KEY = "devtools_initial_is_open";
-
-  /** @type {number} Default number of parent components to show in hierarchical tooltip */
-  const DEFAULT_EXTRA_INFO_COUNT = 5;
-
-  /** @type {number} Maximum number of parent components to show in hierarchical tooltip */
-  const MAX_EXTRA_INFO_COUNT = 5;
 
   /**
    * Editor protocol mappings for different IDEs
@@ -420,9 +398,6 @@
       /** @type {boolean} Whether Alt key is currently pressed */
       this.altPressed = false;
 
-      /** @type {boolean} Whether Shift key is currently pressed */
-      this.shiftPressed = false;
-
       /** @type {Element|null} Currently targeted element */
       this.currentTargetElement = null;
 
@@ -431,15 +406,6 @@
 
       /** @type {MousePosition} Current mouse position */
       this.currentMousePosition = { clientX: 0, clientY: 0 };
-
-      /** @type {boolean} Whether hierarchical tooltip is visible */
-      this.hierarchicalTooltipVisible = false;
-
-      /** @type {number|null} Timeout ID for hierarchical tooltip */
-      this.hierarchicalTooltipTimeout = null;
-
-      /** @type {boolean} Whether hierarchical tooltip was manually toggled */
-      this.hierarchicalTooltipToggled = false;
 
       /** @type {boolean} Whether keyboard navigation is active */
       this.keyboardNavigationActive = false;
@@ -489,21 +455,13 @@
      */
     reset() {
       this.altPressed = false;
-      this.shiftPressed = false;
       this.currentTargetElement = null;
       this.lastTargetElement = null;
       this.currentMousePosition = { clientX: 0, clientY: 0 };
-      this.hierarchicalTooltipVisible = false;
-      this.hierarchicalTooltipToggled = false;
       this.keyboardNavigationActive = false;
       this.keyboardSelectedElement = null;
       this.treeSelectedElement = null;
       this.treeSelectionActive = false;
-
-      if (this.hierarchicalTooltipTimeout) {
-        clearTimeout(this.hierarchicalTooltipTimeout);
-        this.hierarchicalTooltipTimeout = null;
-      }
 
       this.resetCursor();
       this.notify('reset', {});
@@ -591,19 +549,7 @@
       }
     }
 
-    /**
-     * Set Shift key pressed state
-     * @param {boolean} pressed - Whether Shift key is pressed
-     * @returns {void}
-     */
-    setShiftPressed(pressed) {
-      const wasPressed = this.shiftPressed;
-      this.shiftPressed = pressed;
 
-      if (wasPressed !== pressed) {
-        this.notify('shiftKeyChanged', { pressed });
-      }
-    }
 
     /**
      * Reset cursor to default
@@ -627,19 +573,7 @@
       }
     }
 
-    /**
-     * Set hierarchical tooltip visibility
-     * @param {boolean} visible - Whether hierarchical tooltip should be visible
-     * @returns {void}
-     */
-    setHierarchicalTooltipVisible(visible) {
-      const wasVisible = this.hierarchicalTooltipVisible;
-      this.hierarchicalTooltipVisible = visible;
 
-      if (wasVisible !== visible) {
-        this.notify('hierarchicalTooltipVisibilityChanged', { visible });
-      }
-    }
 
 
   }
@@ -1063,7 +997,7 @@
   }
 
   /**
-   * Tooltip management class for main tooltip and unified hierarchical tooltip functionality
+   * Tooltip management class for main tooltip functionality
    * @class TooltipManager
    */
   class TooltipManager {
@@ -1082,14 +1016,8 @@
       /** @type {HTMLDivElement|null} Main tooltip DOM element */
       this.mainTooltip = null;
 
-      /** @type {HTMLDivElement|null} Hierarchical tooltip DOM element */
-      this.hierarchicalTooltip = null;
-
       /** @type {boolean} Whether main tooltip is visible */
       this.isMainVisible = false;
-
-      /** @type {boolean} Whether hierarchical tooltip is visible */
-      this.isHierarchicalVisible = false;
 
       /** @type {Function} Unsubscribe function for state changes */
       this.unsubscribe = this.state.subscribe((type, data) => {
@@ -1107,22 +1035,12 @@
       switch (type) {
         case 'reset':
           this.hideMain();
-          this.hideHierarchical();
           break;
         case 'targetElementChanged':
           if (data.element) {
             this.showMain(data.element);
           } else {
             this.hideMain();
-            this.hideHierarchical();
-          }
-          break;
-
-        case 'hierarchicalTooltipVisibilityChanged':
-          if (data.visible) {
-            this.showHierarchicalForCurrentElement();
-          } else {
-            this.hideHierarchical();
           }
           break;
       }
@@ -1356,425 +1274,17 @@
       });
     }
 
-    /**
-     * Hide hierarchical tooltip
-     * @returns {void}
-     */
-    hideHierarchical() {
-      if (this.hierarchicalTooltip) {
-        this.hierarchicalTooltip.style.display = "none";
-      }
-      this.isHierarchicalVisible = false;
-    }
 
-    /**
-     * Create hierarchical tooltip element
-     * @returns {void}
-     */
-    createHierarchicalElement() {
-      if (this.hierarchicalTooltip) return;
 
-      this.hierarchicalTooltip = document.createElement("div");
-      this.hierarchicalTooltip.className = "devtools-hierarchical-tooltip";
-      this.hierarchicalTooltip.id = "devtools-hierarchical-tooltip";
 
-      // Apply consistent styling with extra info tooltip
-      Object.assign(this.hierarchicalTooltip.style, {
-        position: "fixed",
-        pointerEvents: "none",
-        backgroundColor: this.styleManager.getCSSProperty('black-overlay'),
-        color: this.styleManager.getCSSProperty('white'),
-        padding: this.styleManager.getCSSProperty('tooltip-padding-large'),
-        borderRadius: this.styleManager.getCSSProperty('border-radius'),
-        fontSize: this.styleManager.getCSSProperty('font-size'),
-        fontFamily: this.styleManager.getCSSProperty('font-family'),
-        border: `${this.styleManager.getCSSProperty('border-width-thin')} solid ${this.styleManager.getCSSProperty('white-border')}`,
-        boxShadow: this.styleManager.getCSSProperty('shadow-extra-info-tooltip'),
-        whiteSpace: "normal", // Allow wrapping for hierarchical content
-        zIndex: parseInt(this.styleManager.getCSSProperty('z-index')) + 3, // Higher than parent tooltip
-        display: "none",
-        opacity: "0",
-        transition: `all ${this.styleManager.getCSSProperty('transition-slow')} ${this.styleManager.getCSSProperty('easing-smooth')}`,
-        backdropFilter: this.styleManager.getCSSProperty('backdrop-blur'),
-        lineHeight: this.styleManager.getCSSProperty('line-height'),
-        willChange: "transform, opacity",
-        boxSizing: "border-box",
-        maxWidth: "400px", // Larger max width for hierarchical content
-        wordWrap: "break-word"
-      });
 
-      document.body.appendChild(this.hierarchicalTooltip);
-    }
 
-    /**
-     * Show hierarchical tooltip for current element
-     * @returns {void}
-     */
-    showHierarchicalForCurrentElement() {
-      if (!this.state.currentTargetElement || !this.isMainVisible) {
-        return;
-      }
 
-      // Get hierarchical information
-      const hierarchicalInfo = this.getHierarchicalInfo(this.state.currentTargetElement);
-      if (!hierarchicalInfo.hasContent) return;
 
-      this.createHierarchicalElement();
 
-      // Create content
-      const content = this.createHierarchicalTooltipContent(hierarchicalInfo);
-      if (this.hierarchicalTooltip) {
-        this.hierarchicalTooltip.innerHTML = content;
 
-        // Position relative to main tooltip
-        this.positionHierarchicalTooltip();
 
-        // Ensure element is properly visible (reset any hidden state)
-        this.hierarchicalTooltip.style.display = "block";
-        this.hierarchicalTooltip.style.opacity = "1";
-        this.isHierarchicalVisible = true;
-      }
-    }
 
-    /**
-     * Get hierarchical information for an element
-     * @param {Element} element - Target element
-     * @returns {HierarchicalInfo} Hierarchical information object
-     */
-    getHierarchicalInfo(element) {
-      const maxParents = 3; // Maximum parent levels to display
-      const maxSiblings = 5; // Maximum siblings to display (including current)
-      const maxChildren = 5; // Maximum children to display
-
-      // Get parents (up to 3 levels)
-      const parents = findParentComponents(element, maxParents);
-
-      // Always get children and siblings (full hierarchy mode)
-      const childrenResult = this.getChildComponents(element, maxChildren);
-      const siblingsResult = this.getSiblingComponents(element, maxSiblings);
-
-      return {
-        parents,
-        children: childrenResult,
-        siblings: siblingsResult,
-        hasContent: parents.length > 0 || childrenResult.components.length > 0 || siblingsResult.components.length > 0
-      };
-    }
-
-    /**
-     * Get child components for an element
-     * @param {Element} element - Target element
-     * @param {number} maxCount - Maximum number of children to return
-     * @returns {{components: ComponentInfo[], totalCount: number}} Object with components array and total count
-     */
-    getChildComponents(element, maxCount) {
-      // We need to access the keyboard navigator to use findChildComponents
-      // For now, we'll implement a simplified version here
-      const allChildren = [];
-      const walker = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_ELEMENT,
-        {
-          acceptNode: function(node) {
-            if (node === element) {
-              return NodeFilter.FILTER_SKIP;
-            }
-
-            const elementNode = /** @type {Element} */ (node);
-            if (PropertyAccessor.hasSourcePath(elementNode)) {
-              return NodeFilter.FILTER_ACCEPT;
-            }
-
-            return NodeFilter.FILTER_SKIP;
-          }
-        }
-      );
-
-      let node;
-      while (node = walker.nextNode()) {
-        const elementNode = /** @type {Element} */ (node);
-
-        // Only include direct children
-        let ancestor = elementNode.parentElement;
-        let isDirectChild = true;
-
-        while (ancestor && ancestor !== element) {
-          if (PropertyAccessor.hasSourcePath(ancestor)) {
-            isDirectChild = false;
-            break;
-          }
-          ancestor = ancestor.parentElement;
-        }
-
-        if (isDirectChild) {
-          const filename = PropertyAccessor.getFilename(elementNode);
-          const line = PropertyAccessor.getSourceLine(elementNode);
-          const path = PropertyAccessor.getSourcePath(elementNode);
-
-          if (filename && line && path) {
-            allChildren.push({
-              element: elementNode,
-              filename: filename,
-              line: line,
-              path: path
-            });
-          }
-        }
-      }
-
-      return {
-        components: allChildren.slice(0, maxCount),
-        totalCount: allChildren.length
-      };
-    }
-
-    /**
-     * Get sibling components for an element
-     * @param {Element} element - Target element
-     * @param {number} maxCount - Maximum number of siblings to return (including current element)
-     * @returns {{components: ComponentInfo[], totalCount: number, currentElement: Element}} Object with components array, total count, and current element reference
-     */
-    getSiblingComponents(element, maxCount) {
-      // Find parent component
-      let parent = element.parentElement;
-      while (parent && parent !== document.body) {
-        if (PropertyAccessor.hasSourcePath(parent)) {
-          break;
-        }
-        parent = parent.parentElement;
-      }
-
-      // If no parent component found, get top-level components
-      let allSiblings = [];
-      if (!parent || parent === document.body) {
-        // Get all top-level components
-        const walker = document.createTreeWalker(
-          document.body,
-          NodeFilter.SHOW_ELEMENT,
-          {
-            acceptNode: function(node) {
-              const elementNode = /** @type {Element} */ (node);
-              if (PropertyAccessor.hasSourcePath(elementNode)) {
-                // Check if has parent with source path
-                let nodeParent = elementNode.parentElement;
-                while (nodeParent && nodeParent !== document.body) {
-                  if (PropertyAccessor.hasSourcePath(nodeParent)) {
-                    return NodeFilter.FILTER_REJECT;
-                  }
-                  nodeParent = nodeParent.parentElement;
-                }
-                return NodeFilter.FILTER_ACCEPT;
-              }
-              return NodeFilter.FILTER_SKIP;
-            }
-          }
-        );
-
-        let node;
-        while (node = walker.nextNode()) {
-          const elementNode = /** @type {Element} */ (node);
-          const filename = PropertyAccessor.getFilename(elementNode);
-          const line = PropertyAccessor.getSourceLine(elementNode);
-          const path = PropertyAccessor.getSourcePath(elementNode);
-
-          if (filename && line && path) {
-            allSiblings.push({
-              element: elementNode,
-              filename: filename,
-              line: line,
-              path: path
-            });
-          }
-        }
-      } else {
-        // Get children of parent (which are siblings of current element)
-        const parentChildrenResult = this.getChildComponents(parent, 100); // Get more to count all siblings
-        allSiblings = parentChildrenResult.components;
-      }
-
-      // Sort siblings to ensure consistent ordering (current element should be in its natural position)
-      allSiblings.sort((a, b) => {
-        const aRect = a.element.getBoundingClientRect();
-        const bRect = b.element.getBoundingClientRect();
-        // Sort by top position first, then by left position
-        if (Math.abs(aRect.top - bRect.top) > 1) {
-          return aRect.top - bRect.top;
-        }
-        return aRect.left - bRect.left;
-      });
-
-      // Return limited siblings (including current element)
-      return {
-        components: allSiblings.slice(0, maxCount),
-        totalCount: allSiblings.length,
-        currentElement: element
-      };
-    }
-
-    /**
-     * Create hierarchical tooltip content
-     * @param {HierarchicalInfo} hierarchicalInfo - Hierarchical information
-     * @returns {string} HTML content
-     */
-    createHierarchicalTooltipContent(hierarchicalInfo) {
-      const sections = [];
-
-      // Parents section (always included)
-      if (hierarchicalInfo.parents.length > 0) {
-        const parentItems = hierarchicalInfo.parents.map((parent, index) => {
-          const indent = "  ".repeat((parent.level || 1) - 1);
-          const connector = index === 0 ? "└─ " : "├─ ";
-          const componentName = this.getComponentDisplayName(parent.filename);
-          return `<div style="margin: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin')} 0; font-family: ${this.styleManager.getCSSProperty('font-family')};">
-            <span style="color: ${this.styleManager.getCSSProperty('gray-medium')};">${indent}${connector}</span>
-            <span style="color: ${this.styleManager.getCSSProperty('white')};">${componentName}</span>
-          </div>`;
-        });
-
-        // Always show section header for full hierarchy mode
-        sections.push(`
-          <div style="color: ${this.styleManager.getCSSProperty('gray-light')}; font-size: ${this.styleManager.getCSSProperty('font-size-small')}; margin-bottom: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin-bottom')};">Parent Components:</div>
-          ${parentItems.join("")}
-        `);
-      }
-
-      // Children section
-      if (hierarchicalInfo.children.components.length > 0) {
-        const childItems = hierarchicalInfo.children.components.map(child => {
-          const componentName = this.getComponentDisplayName(child.filename);
-          return `<div style="margin: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin')} 0; font-family: ${this.styleManager.getCSSProperty('font-family')};">
-            <span style="color: ${this.styleManager.getCSSProperty('gray-medium')};"> ├─ </span>
-            <span style="color: ${this.styleManager.getCSSProperty('white')};">${componentName}</span>
-          </div>`;
-        });
-
-        // Add overflow indicator if there are more children
-        const overflowText = hierarchicalInfo.children.totalCount > hierarchicalInfo.children.components.length
-          ? `<div style="margin: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin')} 0; font-family: ${this.styleManager.getCSSProperty('font-family')};">
-              <span style="color: ${this.styleManager.getCSSProperty('gray-medium')};"> ├─ </span>
-              <span style="color: ${this.styleManager.getCSSProperty('gray-light')}; font-style: italic;">+${hierarchicalInfo.children.totalCount - hierarchicalInfo.children.components.length} more children</span>
-            </div>`
-          : '';
-
-        sections.push(`
-          <div style="color: ${this.styleManager.getCSSProperty('gray-light')}; font-size: ${this.styleManager.getCSSProperty('font-size-small')}; margin-bottom: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin-bottom')}; margin-top: ${sections.length > 0 ? this.styleManager.getCSSProperty('extra-info-tooltip-margin-bottom') : '0'};">Child Components:</div>
-          ${childItems.join("")}${overflowText}
-        `);
-      }
-
-      // Siblings section (show if there are any siblings or if we have the current element)
-      if (hierarchicalInfo.siblings.components.length > 0 || hierarchicalInfo.siblings.totalCount > 0) {
-        const currentElement = hierarchicalInfo.siblings.currentElement;
-        const siblingItems = hierarchicalInfo.siblings.components.map(sibling => {
-          const componentName = this.getComponentDisplayName(sibling.filename);
-          const isCurrent = sibling.element === currentElement;
-
-          // Create visual indicator for current element
-          const currentIndicator = isCurrent
-            ? `<span style="color: ${this.styleManager.getCSSProperty('white')}; font-weight: bold; margin-left: 4px;">*</span>`
-            : '';
-
-          // Use different styling for current element
-          const nameColor = isCurrent
-            ? this.styleManager.getCSSProperty('white')
-            : this.styleManager.getCSSProperty('white');
-
-          const nameStyle = isCurrent
-            ? 'font-weight: bold;'
-            : '';
-
-          return `<div style="margin: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin')} 0; font-family: ${this.styleManager.getCSSProperty('font-family')};">
-            <span style="color: ${this.styleManager.getCSSProperty('gray-medium')};"> ├─ </span>
-            <span style="color: ${nameColor}; ${nameStyle}">${componentName}</span>${currentIndicator}
-          </div>`;
-        });
-
-        // Add overflow indicator if there are more siblings
-        const remainingSiblings = hierarchicalInfo.siblings.totalCount - hierarchicalInfo.siblings.components.length;
-        const overflowText = remainingSiblings > 0
-          ? `<div style="margin: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin')} 0; font-family: ${this.styleManager.getCSSProperty('font-family')};">
-              <span style="color: ${this.styleManager.getCSSProperty('gray-medium')};"> ├─ </span>
-              <span style="color: ${this.styleManager.getCSSProperty('gray-light')}; font-style: italic;">+${remainingSiblings} more siblings</span>
-            </div>`
-          : '';
-
-        sections.push(`
-          <div style="color: ${this.styleManager.getCSSProperty('gray-light')}; font-size: ${this.styleManager.getCSSProperty('font-size-small')}; margin-bottom: ${this.styleManager.getCSSProperty('extra-info-tooltip-margin-bottom')}; margin-top: ${sections.length > 0 ? this.styleManager.getCSSProperty('extra-info-tooltip-margin-bottom') : '0'};">Sibling Components:</div>
-          ${siblingItems.join("")}${overflowText}
-        `);
-      }
-
-      return sections.join("");
-    }
-
-    /**
-     * Position hierarchical tooltip relative to main tooltip
-     */
-    positionHierarchicalTooltip() {
-      if (!this.hierarchicalTooltip || !this.mainTooltip) return;
-
-      const mainRect = this.mainTooltip.getBoundingClientRect();
-      const hierarchicalRect = this.hierarchicalTooltip.getBoundingClientRect();
-
-      const position = this.calculateHierarchicalTooltipPosition(mainRect, hierarchicalRect.width, hierarchicalRect.height);
-
-      if (this.hierarchicalTooltip) {
-        Object.assign(this.hierarchicalTooltip.style, {
-          left: `${position.left}px`,
-          top: `${position.top}px`,
-        });
-      }
-    }
-
-    /**
-     * Calculate optimal position for hierarchical tooltip
-     * @param {DOMRect} mainRect - Main tooltip rectangle
-     * @param {number} width - Hierarchical tooltip width
-     * @param {number} height - Hierarchical tooltip height
-     * @returns {TooltipPosition} Position coordinates
-     */
-    calculateHierarchicalTooltipPosition(mainRect, width, height) {
-      const margin = parseInt(this.styleManager.getCSSProperty('tooltip-margin')) || 10;
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      // Try positions in order of preference: right, left, bottom, top
-      const positions = [
-        // Right of main tooltip
-        {
-          left: mainRect.right + margin,
-          top: mainRect.top
-        },
-        // Left of main tooltip
-        {
-          left: mainRect.left - width - margin,
-          top: mainRect.top
-        },
-        // Below main tooltip
-        {
-          left: mainRect.left,
-          top: mainRect.bottom + margin
-        },
-        // Above main tooltip
-        {
-          left: mainRect.left,
-          top: mainRect.top - height - margin
-        }
-      ];
-
-      // Find first position that fits in viewport
-      for (const position of positions) {
-        if (this.isPositionWithinViewport(position, width, height, margin)) {
-          return position;
-        }
-      }
-
-      // Fallback: position to the right with viewport constraints
-      return {
-        left: Math.min(mainRect.right + margin, viewportWidth - width - margin),
-        top: Math.min(Math.max(mainRect.top, margin), viewportHeight - height - margin)
-      };
-    }
 
 
 
@@ -1791,13 +1301,7 @@
         this.mainTooltip = null;
       }
 
-      if (this.hierarchicalTooltip) {
-        this.hierarchicalTooltip.remove();
-        this.hierarchicalTooltip = null;
-      }
-
       this.isMainVisible = false;
-      this.isHierarchicalVisible = false;
     }
   }
 
@@ -2606,25 +2110,7 @@
           this.devtoolsSystem.tooltip.showMain(targetElement);
         }
 
-        // Check for auto-show hierarchical tooltip
-        setTimeout(() => {
-          this.checkAutoShowHierarchicalTooltip();
-        }, 25);
-      } else if (event.key === "Shift" && !this.devtoolsSystem.state.shiftPressed) {
-        // Shift key pressed
-        this.devtoolsSystem.state.setShiftPressed(true);
 
-        if (this.devtoolsSystem.state.altPressed) {
-          // Alt+Shift combination - show hierarchical tooltip
-          if (this.devtoolsSystem.state.currentTargetElement &&
-              this.devtoolsSystem.tooltip.isMainVisible) {
-            // Always show hierarchical tooltip when Shift is pressed while Alt is held
-            // This creates the explicit re-trigger behavior
-            setTimeout(() => {
-              this.checkAutoShowHierarchicalTooltip();
-            }, 25);
-          }
-        }
       }
     }
 
@@ -2638,11 +2124,6 @@
         this.devtoolsSystem.state.setKeyboardNavigationActive(false);
         this.devtoolsSystem.overlay.hide();
         this.devtoolsSystem.tooltip.hideMain();
-        this.devtoolsSystem.tooltip.hideHierarchical();
-        this.devtoolsSystem.state.hierarchicalTooltipToggled = false;
-      } else if (event.key === "Shift") {
-        this.devtoolsSystem.state.setShiftPressed(false);
-        this.checkAutoHideHierarchicalTooltip();
       }
     }
 
@@ -2662,11 +2143,7 @@
       this.devtoolsSystem.state.updateMousePosition(event.clientX, event.clientY);
 
       if (this.devtoolsSystem.state.altPressed) {
-        // Hide hierarchical tooltip immediately on any mouse movement when Alt+Shift is pressed
-        if (this.devtoolsSystem.state.altPressed && this.devtoolsSystem.state.shiftPressed &&
-            this.devtoolsSystem.state.hierarchicalTooltipVisible) {
-          this.devtoolsSystem.state.setHierarchicalTooltipVisible(false);
-        }
+
 
         // Switch to mouse mode if in keyboard mode
         const wasKeyboardMode = this.devtoolsSystem.state.keyboardNavigationActive;
@@ -2685,7 +2162,7 @@
         })();
       } else {
         this.devtoolsSystem.overlay.hide();
-        this.devtoolsSystem.tooltip.hideHierarchical();
+
       }
     }
 
@@ -2724,50 +2201,7 @@
       return null;
     }
 
-    /**
-     * Check if hierarchical tooltip should be auto-shown
-     */
-    checkAutoShowHierarchicalTooltip() {
-      if (!this.devtoolsSystem.state.altPressed || !this.devtoolsSystem.state.shiftPressed) return;
-      if (!this.devtoolsSystem.state.currentTargetElement) return;
-      if (!this.devtoolsSystem.tooltip.isMainVisible) return;
 
-      // Show hierarchical tooltip when Alt+Shift is pressed
-      this.devtoolsSystem.state.setHierarchicalTooltipVisible(true);
-    }
-
-    /**
-     * Check if hierarchical tooltip should be auto-hidden
-     */
-    checkAutoHideHierarchicalTooltip() {
-      if (this.devtoolsSystem.state.hierarchicalTooltipToggled) return;
-
-      // Hide hierarchical tooltip when Alt+Shift is released
-      if ((!this.devtoolsSystem.state.altPressed || !this.devtoolsSystem.state.shiftPressed) &&
-          this.devtoolsSystem.state.hierarchicalTooltipVisible) {
-        this.devtoolsSystem.state.setHierarchicalTooltipVisible(false);
-      }
-    }
-
-    /**
-     * Toggle hierarchical tooltip visibility
-     */
-    toggleHierarchicalTooltip() {
-      if (!this.devtoolsSystem.state.altPressed || !this.devtoolsSystem.state.currentTargetElement) return;
-      if (!this.devtoolsSystem.tooltip.isMainVisible) return;
-
-      if (this.devtoolsSystem.state.hierarchicalTooltipVisible) {
-        this.devtoolsSystem.state.setHierarchicalTooltipVisible(false);
-        this.devtoolsSystem.state.hierarchicalTooltipToggled = false;
-      } else {
-        // Check if there's any hierarchical content available
-        const hierarchicalInfo = this.devtoolsSystem.tooltip.getHierarchicalInfo(this.devtoolsSystem.state.currentTargetElement);
-        if (hierarchicalInfo.hasContent) {
-          this.devtoolsSystem.state.setHierarchicalTooltipVisible(true);
-          this.devtoolsSystem.state.hierarchicalTooltipToggled = true;
-        }
-      }
-    }
 
     /**
      * Cleanup all event listeners
@@ -5394,7 +4828,6 @@
       /** @type {DevtoolsOptions} Configuration options */
       this.options = {
         enableKeyboardNavigation: true,
-        enableHierarchicalTooltips: true,
         componentTreeAutoOpen: getComponentTreeAutoOpen(),
         viewportVisibilityFilter: getViewportVisibilityFilter(),
         initialIsOpen: getInitialIsOpen(),
@@ -5438,7 +4871,6 @@
     getStatus() {
       return {
         altPressed: this.state.altPressed,
-        shiftPressed: this.state.shiftPressed,
         keyboardNavigationActive: this.state.keyboardNavigationActive,
         currentTarget: this.state.currentTargetElement ? {
           filename: PropertyAccessor.getFilename(this.state.currentTargetElement),
@@ -5446,8 +4878,7 @@
           path: PropertyAccessor.getSourcePath(this.state.currentTargetElement)
         } : null,
         overlayVisible: this.overlay.isVisible,
-        tooltipVisible: this.tooltip.isMainVisible,
-        hierarchicalTooltipVisible: this.tooltip.isHierarchicalVisible
+        tooltipVisible: this.tooltip.isMainVisible
       };
     }
 
@@ -5491,17 +4922,7 @@
       }
     }
 
-    /**
-     * Enable/disable hierarchical tooltips
-     * @param {boolean} enabled - Whether to enable hierarchical tooltips
-     * @returns {void}
-     */
-    setHierarchicalTooltipsEnabled(enabled) {
-      this.options.enableHierarchicalTooltips = enabled;
-      if (!enabled && this.state.hierarchicalTooltipVisible) {
-        this.state.setHierarchicalTooltipVisible(false);
-      }
-    }
+
 
     /**
      * Get all components in the current page
@@ -5552,7 +4973,6 @@
     exportConfig() {
       return {
         preferredIDE: PREFER_IDE_PROTOCOL,
-        hierarchicalTooltipParentCount: getExtraInfoTooltipCount(),
         componentTreeAutoOpen: getComponentTreeAutoOpen(),
         viewportVisibilityFilter: getViewportVisibilityFilter(),
         initialIsOpen: getInitialIsOpen(),
@@ -5570,9 +4990,7 @@
         localStorage.setItem(PREFER_IDE_KEY, config.preferredIDE);
       }
 
-      if (typeof config.hierarchicalTooltipParentCount === 'number') {
-        localStorage.setItem(EXTRA_INFO_TOOLTIP_COUNT_KEY, config.hierarchicalTooltipParentCount.toString());
-      }
+
 
       if (typeof config.componentTreeAutoOpen === 'boolean') {
         localStorage.setItem(COMPONENT_TREE_AUTO_OPEN_KEY, config.componentTreeAutoOpen.toString());
@@ -5708,20 +5126,7 @@
     return null;
   }
 
-  /**
-   * Get the configured number of parent components to display in hierarchical tooltip
-   * @returns {number} Number of parent components to show (0-5)
-   */
-  function getExtraInfoTooltipCount() {
-    const stored = window.localStorage.getItem(EXTRA_INFO_TOOLTIP_COUNT_KEY);
-    if (stored) {
-      const count = parseInt(stored, 10);
-      if (!isNaN(count) && count >= 0 && count <= MAX_EXTRA_INFO_COUNT) {
-        return count;
-      }
-    }
-    return DEFAULT_EXTRA_INFO_COUNT;
-  }
+
 
   /**
    * Get the configured component tree auto-open setting
@@ -5750,41 +5155,7 @@
     return stored === "true";
   }
 
-  /**
-   * Find parent UIComponents in the hierarchy
-   * @param {Element} currentElement - Current element to start searching from
-   * @param {number} maxCount - Maximum number of parents to find
-   * @returns {ComponentInfo[]} Array of parent component information
-   */
-  function findParentComponents(currentElement, maxCount) {
-    /** @type {ComponentInfo[]} */
-    const parents = [];
-    let element = currentElement.parentElement;
-    let level = 1;
 
-    while (element && element !== document.body && parents.length < maxCount) {
-      if (PropertyAccessor.hasSourcePath(element)) {
-        const filename = PropertyAccessor.getFilename(element);
-        const line = PropertyAccessor.getSourceLine(element);
-
-        const path = PropertyAccessor.getSourcePath(element);
-
-        if (filename && line && path) {
-          parents.push({
-            element: element,
-            filename: filename,
-            line: line,
-            path: path,
-            level: level
-          });
-          level++;
-        }
-      }
-      element = element.parentElement;
-    }
-
-    return parents;
-  }
 
   // ============================================================================
   // INITIALIZATION
@@ -5800,8 +5171,7 @@
   function initializeDevtoolsSystem() {
     try {
       globalDevtoolsSystem = new DevtoolsSystem({
-        enableKeyboardNavigation: true,
-        enableHierarchicalTooltips: true
+        enableKeyboardNavigation: true
       });
 
       // Expose global instance for debugging and external access
