@@ -2950,7 +2950,6 @@
       // Create settings button
       const settingsButton = document.createElement('button');
       settingsButton.className = 'devtools-tree-settings';
-      settingsButton.innerHTML = '⚙';
       settingsButton.title = 'Settings';
       settingsButton.style.cssText = `
         width: var(--tree-close-button-size);
@@ -2958,8 +2957,8 @@
         border: none;
         background: transparent;
         color: var(--tree-text-secondary-color);
-        font-size: 18px;
-        line-height: var(--tree-close-button-size);
+        font-size: 16px;
+        line-height: 1;
         font-weight: 400;
         cursor: pointer;
         border-radius: var(--tree-close-button-border-radius);
@@ -2969,7 +2968,17 @@
         transition: var(--tree-node-transition);
         opacity: 0.8;
         font-family: var(--tree-text-font-family);
+        padding: 0;
+        margin: 0;
       `;
+      const settingsIcon = document.createElement('span');
+      settingsIcon.innerHTML = '⚙';
+      settingsIcon.style.cssText = `
+        position: relative;
+        font-size: 20px;
+        top: -1px;
+      `
+      settingsButton.appendChild(settingsIcon);
 
       // Settings button hover effects
       settingsButton.addEventListener('mouseenter', () => {
@@ -4683,7 +4692,7 @@
       this.settingsPanel.style.cssText = `
         position: absolute;
         top: calc(var(--tree-header-height) - 2px);
-        right: 8px;
+        right: 16px;
         background: var(--tree-panel-bg);
         border: 1px solid rgba(240, 246, 252, 0.1);
         border-radius: var(--tree-node-border-radius);
