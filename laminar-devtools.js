@@ -4335,6 +4335,7 @@
 
       // Create a single bottom-right resize control
       const handle = document.createElement('div');
+      handle.className = "devtools-tree-resize-handle"
       handle.dataset.direction = 'bottom-right';
 
       // Style: curved L-shape line with extra gap, thicker & lighter border for visibility
