@@ -77,6 +77,7 @@
    * @property {boolean} enableKeyboardNavigation - Enable keyboard navigation
    * @property {boolean} enableHierarchicalTooltips - Enable hierarchical tooltips
    * @property {boolean} componentTreeAutoOpen - Auto-open component tree on page load
+   * @property {boolean} viewportVisibilityFilter - Filter tree nodes based on viewport visibility
    */
 
   /**
@@ -84,6 +85,7 @@
    * @property {string} [preferredIDE] - Preferred IDE protocol
    * @property {number} [hierarchicalTooltipParentCount] - Number of parent components to show
    * @property {boolean} [componentTreeAutoOpen] - Auto-open component tree on page load
+   * @property {boolean} [viewportVisibilityFilter] - Filter tree nodes based on viewport visibility
    * @property {Partial<DevtoolsOptions>} [options] - Devtools options
    */
 
@@ -372,6 +374,9 @@
 
   /** @type {string} Local storage key for component tree auto-open setting */
   const COMPONENT_TREE_AUTO_OPEN_KEY = "devtools_component_tree_auto_open";
+
+  /** @type {string} Local storage key for viewport visibility filter setting */
+  const VIEWPORT_VISIBILITY_FILTER_KEY = "devtools_viewport_visibility_filter";
 
   /** @type {number} Default number of parent components to show in hierarchical tooltip */
   const DEFAULT_EXTRA_INFO_COUNT = 5;
@@ -1792,6 +1797,258 @@
   }
 
   /**
+   * Viewport visibility utility class for detecting which elements are currently visible
+   * @class ViewportVisibilityDetector
+   */
+  class ViewportVisibilityDetector {
+    /**
+     * Create a new ViewportVisibilityDetector instance
+     * @constructor
+     */
+    constructor() {
+      /** @type {Map<Element, boolean>} Cache for element visibility status */
+      this.visibilityCache = new Map();
+
+      /** @type {number|null} Throttle timeout ID */
+      this.throttleTimeoutId = null;
+
+      /** @type {number} Throttle delay in milliseconds */
+      this.throttleDelay = 100;
+
+      /** @type {IntersectionObserver|null} Intersection observer for efficient visibility detection */
+      this.intersectionObserver = null;
+
+      /** @type {Map<Element, boolean>} Intersection observer results cache */
+      this.intersectionCache = new Map();
+
+      /** @type {boolean} Whether to use intersection observer for better performance */
+      this.useIntersectionObserver = 'IntersectionObserver' in window;
+    }
+
+    /**
+     * Check if an element is currently visible in the viewport
+     * @param {Element} element - Element to check
+     * @returns {boolean} True if element is visible in viewport
+     */
+    isElementInViewport(element) {
+      if (!element || !element.getBoundingClientRect) {
+        return false;
+      }
+
+      try {
+        const rect = element.getBoundingClientRect();
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+        // Check if element is completely outside viewport
+        if (rect.bottom <= 0 || rect.top >= viewportHeight ||
+            rect.right <= 0 || rect.left >= viewportWidth) {
+          return false;
+        }
+
+        // Check if element has any visible area (not zero-sized)
+        if (rect.width <= 0 || rect.height <= 0) {
+          return false;
+        }
+
+        // Element is at least partially visible
+        return true;
+      } catch (error) {
+        console.warn('Error checking element viewport visibility:', error);
+        return false;
+      }
+    }
+
+    /**
+     * Check if an element is fully visible in the viewport
+     * @param {Element} element - Element to check
+     * @returns {boolean} True if element is fully visible in viewport
+     */
+    isElementFullyInViewport(element) {
+      if (!element || !element.getBoundingClientRect) {
+        return false;
+      }
+
+      try {
+        const rect = element.getBoundingClientRect();
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+        return (
+          rect.top >= 0 &&
+          rect.left >= 0 &&
+          rect.bottom <= viewportHeight &&
+          rect.right <= viewportWidth &&
+          rect.width > 0 &&
+          rect.height > 0
+        );
+      } catch (error) {
+        console.warn('Error checking element full viewport visibility:', error);
+        return false;
+      }
+    }
+
+    /**
+     * Get visibility status for an element with caching
+     * @param {Element} element - Element to check
+     * @param {boolean} [useCache=true] - Whether to use cached results
+     * @returns {boolean} True if element is visible in viewport
+     */
+    getElementVisibility(element, useCache = true) {
+      // Use intersection observer cache if available
+      if (this.useIntersectionObserver && this.intersectionCache.has(element)) {
+        return this.intersectionCache.get(element) || false;
+      }
+
+      if (useCache && this.visibilityCache.has(element)) {
+        return this.visibilityCache.get(element) || false;
+      }
+
+      const isVisible = this.isElementInViewport(element);
+      this.visibilityCache.set(element, isVisible);
+      return isVisible;
+    }
+
+    /**
+     * Initialize intersection observer for efficient visibility tracking
+     * @param {Element[]} elements - Elements to observe
+     * @returns {void}
+     */
+    initializeIntersectionObserver(elements) {
+      if (!this.useIntersectionObserver || this.intersectionObserver) {
+        return;
+      }
+
+      this.intersectionObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            this.intersectionCache.set(entry.target, entry.isIntersecting);
+          });
+        },
+        {
+          root: null, // Use viewport as root
+          rootMargin: '0px',
+          threshold: 0 // Trigger when any part becomes visible
+        }
+      );
+
+      // Observe all elements
+      elements.forEach(element => {
+        if (this.intersectionObserver) {
+          this.intersectionObserver.observe(element);
+        }
+      });
+    }
+
+    /**
+     * Update intersection observer with new elements
+     * @param {Element[]} elements - New elements to observe
+     * @returns {void}
+     */
+    updateIntersectionObserver(elements) {
+      if (!this.useIntersectionObserver || !this.intersectionObserver) {
+        return;
+      }
+
+      // Disconnect and reconnect with new elements
+      this.intersectionObserver.disconnect();
+      this.intersectionCache.clear();
+
+      elements.forEach(element => {
+        if (this.intersectionObserver) {
+          this.intersectionObserver.observe(element);
+        }
+      });
+    }
+
+    /**
+     * Clear the visibility cache
+     * @returns {void}
+     */
+    clearCache() {
+      this.visibilityCache.clear();
+      this.intersectionCache.clear();
+    }
+
+    /**
+     * Update visibility cache for multiple elements
+     * @param {Element[]} elements - Array of elements to update
+     * @returns {void}
+     */
+    updateVisibilityCache(elements) {
+      elements.forEach(element => {
+        const isVisible = this.isElementInViewport(element);
+        this.visibilityCache.set(element, isVisible);
+      });
+    }
+
+    /**
+     * Get all visible elements from a list
+     * @param {Element[]} elements - Array of elements to filter
+     * @returns {Element[]} Array of visible elements
+     */
+    filterVisibleElements(elements) {
+      return elements.filter(element => this.getElementVisibility(element, false));
+    }
+
+    /**
+     * Throttled cache update function
+     * @param {Element[]} elements - Elements to update
+     * @param {Function} [callback] - Optional callback after update
+     * @returns {void}
+     */
+    throttledUpdateCache(elements, callback) {
+      if (this.throttleTimeoutId) {
+        clearTimeout(this.throttleTimeoutId);
+      }
+
+      this.throttleTimeoutId = setTimeout(() => {
+        this.updateVisibilityCache(elements);
+        if (callback) {
+          callback();
+        }
+        this.throttleTimeoutId = null;
+      }, this.throttleDelay);
+    }
+
+    /**
+     * Check if any part of an element is visible, including checking parent visibility
+     * @param {Element} element - Element to check
+     * @returns {boolean} True if element or any parent is visible
+     */
+    isElementOrParentVisible(element) {
+      let currentElement = /** @type {Element|null} */ (element);
+
+      while (currentElement && currentElement !== document.body) {
+        if (this.isElementInViewport(currentElement)) {
+          return true;
+        }
+        currentElement = currentElement.parentElement;
+      }
+
+      return false;
+    }
+
+    /**
+     * Cleanup resources
+     * @returns {void}
+     */
+    destroy() {
+      if (this.throttleTimeoutId) {
+        clearTimeout(this.throttleTimeoutId);
+        this.throttleTimeoutId = null;
+      }
+
+      if (this.intersectionObserver) {
+        this.intersectionObserver.disconnect();
+        this.intersectionObserver = null;
+      }
+
+      this.clearCache();
+    }
+  }
+
+  /**
    * Keyboard navigation class for component tree traversal and navigation logic
    * @class KeyboardNavigator
    */
@@ -2587,6 +2844,21 @@
       /** @type {HTMLDivElement|null} */
       this.headerElement = null;
 
+      /** @type {HTMLButtonElement|null} */
+      this.settingsButton = null;
+
+      /** @type {HTMLDivElement|null} */
+      this.settingsPanel = null;
+
+      /** @type {boolean} */
+      this.settingsPanelVisible = false;
+
+      /** @type {ViewportVisibilityDetector} */
+      this.viewportDetector = new ViewportVisibilityDetector();
+
+      /** @type {Function|null} */
+      this.throttledViewportRefresh = null;
+
       /** @type {Map<string, any>} */
       this.nodeCache = new Map();
 
@@ -2919,6 +3191,12 @@
         // Start monitoring for changes
         this.startChangeMonitoring();
 
+      // Start viewport monitoring if filter is enabled
+      if (this.devtoolsSystem.options.viewportVisibilityFilter) {
+        this.startViewportMonitoring();
+        this.initializeViewportOptimizations();
+      }
+
         // Handle edge cases
         this.handleEdgeCases();
 
@@ -2965,6 +3243,9 @@
 
       // Stop monitoring changes
       this.stopChangeMonitoring();
+
+      // Stop viewport monitoring
+      this.stopViewportMonitoring();
 
       // Deactivate tree selection mode
       this.devtoolsSystem.state.setTreeSelectionActive(false);
@@ -3023,6 +3304,11 @@
 
       // Clear render cache when tree data changes
       this.renderCache.clear();
+
+      // Update viewport optimizations if enabled
+      if (this.devtoolsSystem.options.viewportVisibilityFilter) {
+        this.updateViewportOptimizations();
+      }
     }
 
     /**
@@ -3211,6 +3497,69 @@
         line-height: 1.4;
       `;
 
+      // Create header controls container
+      const headerControls = document.createElement('div');
+      headerControls.className = 'devtools-tree-header-controls';
+      headerControls.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      `;
+
+      // Create settings button
+      const settingsButton = document.createElement('button');
+      settingsButton.className = 'devtools-tree-settings';
+      settingsButton.innerHTML = '⚙';
+      settingsButton.title = 'Settings';
+      settingsButton.style.cssText = `
+        width: var(--tree-close-button-size);
+        height: var(--tree-close-button-size);
+        border: none;
+        background: transparent;
+        color: var(--tree-text-secondary-color);
+        font-size: 18px;
+        line-height: var(--tree-close-button-size);
+        font-weight: 400;
+        cursor: pointer;
+        border-radius: var(--tree-close-button-border-radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: var(--tree-node-transition);
+        opacity: 0.8;
+        font-family: var(--tree-text-font-family);
+      `;
+
+      // Settings button hover effects
+      settingsButton.addEventListener('mouseenter', () => {
+        settingsButton.style.background = 'var(--tree-close-button-hover-bg)';
+        settingsButton.style.opacity = '1';
+        settingsButton.style.color = 'var(--tree-text-color)';
+      });
+
+      settingsButton.addEventListener('mouseleave', () => {
+        settingsButton.style.background = 'transparent';
+        settingsButton.style.opacity = '0.7';
+        settingsButton.style.color = 'var(--tree-text-secondary-color)';
+      });
+
+      settingsButton.addEventListener('mousedown', () => {
+        settingsButton.style.background = 'var(--tree-close-button-active-bg)';
+      });
+
+      settingsButton.addEventListener('mouseup', () => {
+        settingsButton.style.background = 'var(--tree-close-button-hover-bg)';
+      });
+
+      // Store reference to settings button
+      this.settingsButton = settingsButton;
+
+      // Add settings button click handler
+      settingsButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleSettingsPanel();
+      });
+
       // Create close button
       const closeButton = document.createElement('button');
       closeButton.className = 'devtools-tree-close';
@@ -3221,7 +3570,10 @@
         border: none;
         background: transparent;
         color: var(--tree-text-secondary-color);
-        font-size: 12px;
+        font-size: 14px;
+        position: relative;
+        top: 1px;
+        line-height: var(--tree-close-button-size);
         font-weight: 400;
         cursor: pointer;
         border-radius: var(--tree-close-button-border-radius);
@@ -3308,9 +3660,13 @@
       // Add keyboard event listener
       this.treeContainer.addEventListener('keydown', this.handleTreeKeyDown);
 
+      // Assemble the header controls
+      headerControls.appendChild(settingsButton);
+      headerControls.appendChild(closeButton);
+
       // Assemble the panel
       header.appendChild(title);
-      header.appendChild(closeButton);
+      header.appendChild(headerControls);
       this.panelElement.appendChild(header);
       this.panelElement.appendChild(this.treeContainer);
 
@@ -3343,11 +3699,17 @@
         });
       }
 
-      // If no components found, show message
-      if (this.treeData.length === 0) {
+      // If no components found or no visible components, show message
+      if (this.treeData.length === 0 || this.treeContainer.children.length === 0) {
         const emptyMessage = document.createElement('div');
         emptyMessage.className = 'devtools-tree-empty';
-        emptyMessage.textContent = 'No components found';
+
+        if (this.devtoolsSystem.options.viewportVisibilityFilter && this.treeData.length > 0) {
+          emptyMessage.textContent = 'No visible components found';
+        } else {
+          emptyMessage.textContent = 'No components found';
+        }
+
         emptyMessage.style.cssText = `
           padding: 32px 20px;
           text-align: center;
@@ -3368,6 +3730,15 @@
      */
     renderTreeNode(node, container) {
       if (!container) return;
+
+      // Check viewport visibility filter
+      if (this.devtoolsSystem.options.viewportVisibilityFilter) {
+        const isVisible = this.viewportDetector.isElementInViewport(node.element);
+        if (!isVisible) {
+          // Skip rendering this node if it's not visible in viewport
+          return;
+        }
+      }
 
       // Create simple node element
       const nodeElement = document.createElement('div');
@@ -4633,10 +5004,273 @@
 
 
     /**
+     * Toggle settings panel visibility
+     * @returns {void}
+     */
+    toggleSettingsPanel() {
+      if (this.settingsPanelVisible) {
+        this.hideSettingsPanel();
+      } else {
+        this.showSettingsPanel();
+      }
+    }
+
+    /**
+     * Show settings panel
+     * @returns {void}
+     */
+    showSettingsPanel() {
+      if (!this.settingsPanel) {
+        this.createSettingsPanel();
+      }
+
+      if (this.settingsPanel) {
+        this.settingsPanel.style.display = 'block';
+        this.settingsPanelVisible = true;
+
+        // Add click outside listener to close panel
+        setTimeout(() => {
+          document.addEventListener('click', this.handleClickOutsideSettings, true);
+        }, 0);
+      }
+    }
+
+    /**
+     * Hide settings panel
+     * @returns {void}
+     */
+    hideSettingsPanel() {
+      if (this.settingsPanel) {
+        this.settingsPanel.style.display = 'none';
+        this.settingsPanelVisible = false;
+        document.removeEventListener('click', this.handleClickOutsideSettings, true);
+      }
+    }
+
+    /**
+     * Handle click outside settings panel
+     * @param {MouseEvent} event - Click event
+     * @returns {void}
+     */
+    handleClickOutsideSettings = (event) => {
+      const target = /** @type {Node} */ (event.target);
+      if (this.settingsPanel && !this.settingsPanel.contains(target) &&
+          this.settingsButton && !this.settingsButton.contains(target)) {
+        this.hideSettingsPanel();
+      }
+    }
+
+    /**
+     * Create settings panel
+     * @returns {void}
+     */
+    createSettingsPanel() {
+      if (this.settingsPanel) {
+        return;
+      }
+
+      this.settingsPanel = document.createElement('div');
+      this.settingsPanel.className = 'devtools-tree-settings-panel';
+      this.settingsPanel.style.cssText = `
+        position: absolute;
+        top: calc(var(--tree-header-height) - 2px);
+        right: 8px;
+        background: var(--tree-panel-bg);
+        border: 1px solid rgba(240, 246, 252, 0.1);
+        border-radius: var(--tree-node-border-radius);
+        box-shadow: var(--tree-panel-shadow);
+        padding: 12px;
+        min-width: 200px;
+        z-index: calc(var(--tree-panel-z-index) + 1);
+        display: none;
+        font-family: var(--tree-text-font-family);
+        font-size: var(--tree-text-font-size);
+      `;
+
+      // Create viewport visibility filter setting
+      const viewportFilterContainer = document.createElement('div');
+      viewportFilterContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      `;
+
+      const viewportFilterLabel = document.createElement('label');
+      viewportFilterLabel.textContent = 'Show only visible components';
+      viewportFilterLabel.style.cssText = `
+        color: var(--tree-text-color);
+        font-size: 12px;
+        cursor: pointer;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      `;
+
+      const viewportFilterToggle = document.createElement('input');
+      viewportFilterToggle.type = 'checkbox';
+      viewportFilterToggle.checked = this.devtoolsSystem.options.viewportVisibilityFilter;
+      viewportFilterToggle.style.cssText = `
+        margin-left: 8px;
+        cursor: pointer;
+      `;
+
+      // Add change handler for viewport filter toggle
+      viewportFilterToggle.addEventListener('change', (e) => {
+        const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
+        this.devtoolsSystem.options.viewportVisibilityFilter = enabled;
+        localStorage.setItem(VIEWPORT_VISIBILITY_FILTER_KEY, enabled.toString());
+
+        // Update viewport monitoring
+        this.updateViewportMonitoring(enabled);
+
+        // Refresh tree to apply filter
+        this.refreshTree();
+      });
+
+      viewportFilterLabel.appendChild(viewportFilterToggle);
+      viewportFilterContainer.appendChild(viewportFilterLabel);
+      this.settingsPanel.appendChild(viewportFilterContainer);
+
+      // Add to panel
+      if (this.panelElement) {
+        this.panelElement.appendChild(this.settingsPanel);
+      }
+    }
+
+    /**
+     * Start viewport monitoring for real-time updates
+     * @returns {void}
+     */
+    startViewportMonitoring() {
+      if (!this.devtoolsSystem.options.viewportVisibilityFilter) {
+        return;
+      }
+
+      // Throttled refresh function for viewport changes
+      this.throttledViewportRefresh = this.throttle(() => {
+        if (this.isVisible && this.devtoolsSystem.options.viewportVisibilityFilter) {
+          // Use intersection observer cache if available, otherwise clear cache
+          if (!this.viewportDetector.useIntersectionObserver) {
+            this.viewportDetector.clearCache();
+          }
+          this.renderTree();
+        }
+      }, 150);
+
+      // Add scroll listener to window and all scrollable elements
+      this.addScrollListeners();
+
+      // Add resize listener
+      window.addEventListener('resize', /** @type {EventListener} */ (this.throttledViewportRefresh));
+    }
+
+    /**
+     * Stop viewport monitoring
+     * @returns {void}
+     */
+    stopViewportMonitoring() {
+      if (this.throttledViewportRefresh) {
+        window.removeEventListener('resize', /** @type {EventListener} */ (this.throttledViewportRefresh));
+        this.removeScrollListeners();
+        this.throttledViewportRefresh = null;
+      }
+    }
+
+    /**
+     * Add scroll listeners to detect viewport changes
+     * @returns {void}
+     */
+    addScrollListeners() {
+      if (!this.throttledViewportRefresh) return;
+
+      // Listen to window scroll
+      window.addEventListener('scroll', /** @type {EventListener} */ (this.throttledViewportRefresh), { passive: true });
+
+      // Listen to scroll events on scrollable containers
+      document.addEventListener('scroll', /** @type {EventListener} */ (this.throttledViewportRefresh), { passive: true, capture: true });
+    }
+
+    /**
+     * Remove scroll listeners
+     * @returns {void}
+     */
+    removeScrollListeners() {
+      if (this.throttledViewportRefresh) {
+        window.removeEventListener('scroll', /** @type {EventListener} */ (this.throttledViewportRefresh));
+        document.removeEventListener('scroll', /** @type {EventListener} */ (this.throttledViewportRefresh), { capture: true });
+      }
+    }
+
+    /**
+     * Update viewport monitoring when filter setting changes
+     * @param {boolean} enabled - Whether viewport filtering is enabled
+     * @returns {void}
+     */
+    updateViewportMonitoring(enabled) {
+      if (enabled && this.isVisible) {
+        this.startViewportMonitoring();
+        this.initializeViewportOptimizations();
+      } else {
+        this.stopViewportMonitoring();
+      }
+    }
+
+    /**
+     * Initialize viewport optimizations using intersection observer
+     * @returns {void}
+     */
+    initializeViewportOptimizations() {
+      if (!this.devtoolsSystem.options.viewportVisibilityFilter || !this.treeData) {
+        return;
+      }
+
+      // Collect all elements from tree data
+      /** @type {Element[]} */
+      const elements = [];
+      this.forEachNode(this.treeData, (node) => {
+        elements.push(node.element);
+      });
+
+      // Initialize intersection observer for efficient visibility tracking
+      this.viewportDetector.initializeIntersectionObserver(elements);
+    }
+
+    /**
+     * Update viewport optimizations when tree data changes
+     * @returns {void}
+     */
+    updateViewportOptimizations() {
+      if (!this.devtoolsSystem.options.viewportVisibilityFilter || !this.treeData) {
+        return;
+      }
+
+      // Collect all elements from updated tree data
+      /** @type {Element[]} */
+      const elements = [];
+      this.forEachNode(this.treeData, (node) => {
+        elements.push(node.element);
+      });
+
+      // Update intersection observer with new elements
+      this.viewportDetector.updateIntersectionObserver(elements);
+    }
+
+
+
+    /**
      * Cleanup resources
      */
     destroy() {
       this.hide();
+
+      // Hide settings panel and clean up
+      this.hideSettingsPanel();
+      if (this.settingsPanel) {
+        this.settingsPanel.remove();
+        this.settingsPanel = null;
+      }
 
       // Unsubscribe from state changes
       if (this.unsubscribe) {
@@ -4671,6 +5305,14 @@
       this.nodeCache.clear();
       this.renderCache.clear();
       this.throttledRefresh = null;
+
+      // Stop viewport monitoring
+      this.stopViewportMonitoring();
+
+      // Clean up viewport detector
+      if (this.viewportDetector) {
+        this.viewportDetector.destroy();
+      }
     }
   }
 
@@ -4708,6 +5350,7 @@
         enableKeyboardNavigation: true,
         enableHierarchicalTooltips: true,
         componentTreeAutoOpen: getComponentTreeAutoOpen(),
+        viewportVisibilityFilter: getViewportVisibilityFilter(),
         ...options
       };
 
@@ -4856,6 +5499,7 @@
         preferredIDE: PREFER_IDE_PROTOCOL,
         hierarchicalTooltipParentCount: getExtraInfoTooltipCount(),
         componentTreeAutoOpen: getComponentTreeAutoOpen(),
+        viewportVisibilityFilter: getViewportVisibilityFilter(),
         options: { ...this.options }
       };
     }
@@ -4877,6 +5521,11 @@
       if (typeof config.componentTreeAutoOpen === 'boolean') {
         localStorage.setItem(COMPONENT_TREE_AUTO_OPEN_KEY, config.componentTreeAutoOpen.toString());
         this.options.componentTreeAutoOpen = config.componentTreeAutoOpen;
+      }
+
+      if (typeof config.viewportVisibilityFilter === 'boolean') {
+        localStorage.setItem(VIEWPORT_VISIBILITY_FILTER_KEY, config.viewportVisibilityFilter.toString());
+        this.options.viewportVisibilityFilter = config.viewportVisibilityFilter;
       }
 
       if (config.options) {
@@ -5019,6 +5668,15 @@
    */
   function getComponentTreeAutoOpen() {
     const stored = window.localStorage.getItem(COMPONENT_TREE_AUTO_OPEN_KEY);
+    return stored === "true";
+  }
+
+  /**
+   * Get the configured viewport visibility filter setting
+   * @returns {boolean} Whether to filter tree nodes based on viewport visibility
+   */
+  function getViewportVisibilityFilter() {
+    const stored = window.localStorage.getItem(VIEWPORT_VISIBILITY_FILTER_KEY);
     return stored === "true";
   }
 
