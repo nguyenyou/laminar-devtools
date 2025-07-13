@@ -5157,33 +5157,11 @@
       if (typeof window !== 'undefined') {
         // @ts-ignore - Adding to window for debugging
         window.DevtoolsSystem = globalDevtoolsSystem;
-
-        // Add global status check function
-        // @ts-ignore - Adding to window for debugging
-        window.checkDevtoolsStatus = () => {
-          if (globalDevtoolsSystem) {
-            console.log('🔍 Devtools System Status:', globalDevtoolsSystem.getStatus());
-            return globalDevtoolsSystem.getStatus();
-          }
-          return null;
-        };
-
-        // Add global component discovery function
-        // @ts-ignore - Adding to window for debugging
-        window.discoverComponents = () => {
-          if (globalDevtoolsSystem) {
-            const components = globalDevtoolsSystem.getAllComponents();
-            console.log(`📦 Found ${components.length} components:`, components);
-            return components;
-          }
-          return [];
-        };
       }
 
-      console.log('✅ Devtools system initialized with class-based architecture');
-      console.log('💡 Try: window.checkDevtoolsStatus() or window.discoverComponents() in console');
+      console.log('✅ Laminar Devtools initialized');
     } catch (error) {
-      console.error('❌ Failed to initialize devtools system:', error);
+      console.error('❌ Failed to initialize Lamianr Devtools:', error);
       throw error; // Don't fallback, let the error be visible
     }
   }
