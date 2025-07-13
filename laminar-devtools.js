@@ -3218,9 +3218,9 @@
         emptyMessage.className = 'devtools-tree-empty';
 
         if (this.devtoolsSystem.options.viewportVisibilityFilter && this.treeData.length > 0) {
-          emptyMessage.textContent = 'No visible components found';
+          emptyMessage.textContent = 'No visible components found. Hit refresh button to try again.';
         } else {
-          emptyMessage.textContent = 'No components found';
+          emptyMessage.textContent = 'No components found. Hit refresh button to try again.';
         }
 
         emptyMessage.style.cssText = `
