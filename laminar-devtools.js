@@ -4540,6 +4540,7 @@
       viewportFilterToggle.style.cssText = `
         margin-left: 8px;
         cursor: pointer;
+        appearance: auto;
       `;
 
       // Add change handler for viewport filter toggle
@@ -4587,6 +4588,7 @@
       initialIsOpenToggle.style.cssText = `
         margin-left: 8px;
         cursor: pointer;
+        appearance: auto;
       `;
 
       // Add change handler for initial is open toggle
