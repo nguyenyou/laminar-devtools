@@ -4801,53 +4801,6 @@
       ideSelectionContainer.appendChild(ideSelectionLabel);
       this.settingsPanel.appendChild(ideSelectionContainer);
 
-      // Create viewport visibility filter setting
-      const viewportFilterContainer = document.createElement('div');
-      viewportFilterContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 8px;
-      `;
-
-      const viewportFilterLabel = document.createElement('label');
-      viewportFilterLabel.textContent = 'Show only visible components';
-      viewportFilterLabel.style.cssText = `
-        color: var(--tree-text-color);
-        font-size: 12px;
-        cursor: pointer;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      `;
-
-      const viewportFilterToggle = document.createElement('input');
-      viewportFilterToggle.type = 'checkbox';
-      viewportFilterToggle.checked = this.devtoolsSystem.options.viewportVisibilityFilter;
-      viewportFilterToggle.style.cssText = `
-        margin-left: 8px;
-        cursor: pointer;
-        appearance: auto;
-      `;
-
-      // Add change handler for viewport filter toggle
-      viewportFilterToggle.addEventListener('change', (e) => {
-        const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
-        this.devtoolsSystem.options.viewportVisibilityFilter = enabled;
-        PersistentStorage.setString(VIEWPORT_VISIBILITY_FILTER_KEY, enabled.toString());
-
-        // Update viewport monitoring
-        this.updateViewportMonitoring(enabled);
-
-        // Refresh tree to apply filter
-        this.refreshTree();
-      });
-
-      viewportFilterLabel.appendChild(viewportFilterToggle);
-      viewportFilterContainer.appendChild(viewportFilterLabel);
-      this.settingsPanel.appendChild(viewportFilterContainer);
-
       // Create initial is open setting
       const initialIsOpenContainer = document.createElement('div');
       initialIsOpenContainer.style.cssText = `
