@@ -33,10 +33,6 @@
    * @property {number} level - Depth level in tree
    */
 
-
-
-
-
   /**
    * @typedef {Object} Position
    * @property {number} left - Left position in pixels
@@ -164,9 +160,7 @@
      * @returns {boolean} True if element has all required properties
      */
     hasAllProperties(element) {
-      return Boolean(this.getSourcePath(element) &&
-             this.getFilename(element) &&
-             this.getSourceLine(element));
+      return Boolean(this.getSourcePath(element) && this.getFilename(element) && this.getSourceLine(element));
     }
   };
 
@@ -195,8 +189,6 @@
         --devtools-primary-bg-medium: rgba(0, 123, 255, 0.18);
         --devtools-primary-shadow-light: rgba(0, 123, 255, 0.25);
         --devtools-primary-shadow-medium: rgba(0, 123, 255, 0.35);
-
-
 
         /* Devtools Colors - Neutral */
         --devtools-white: white;
@@ -2232,7 +2224,6 @@
    * - Real-time updates when components change
    *
    * Integration:
-   * - Uses existing UIComponent system and @uicomponent annotations
    * - Leverages DevtoolsSystem for component discovery and overlay functionality
    * - Maintains consistency with existing keyboard navigation patterns
    * - Follows established CSS custom property conventions
@@ -4438,10 +4429,6 @@
       }
     }
 
-
-
-
-
     /**
      * Toggle settings panel visibility
      * @returns {void}
@@ -4737,8 +4724,6 @@
       this.viewportDetector.updateIntersectionObserver(elements);
     }
 
-
-
     /**
      * Cleanup resources
      */
@@ -4921,8 +4906,6 @@
         this.state.setKeyboardNavigationActive(false);
       }
     }
-
-
 
     /**
      * Get all components in the current page
@@ -5126,8 +5109,6 @@
     return null;
   }
 
-
-
   /**
    * Get the configured component tree auto-open setting
    * @returns {boolean} Whether to auto-open component tree on page load
@@ -5154,8 +5135,6 @@
     const stored = window.localStorage.getItem(INITIAL_IS_OPEN_KEY);
     return stored === "true";
   }
-
-
 
   // ============================================================================
   // INITIALIZATION
