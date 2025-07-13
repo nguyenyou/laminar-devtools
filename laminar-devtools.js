@@ -2223,7 +2223,7 @@
    * Component Tree View class for displaying hierarchical component structure
    *
    * Features:
-   * - Keyboard shortcut activation: Alt + Shift + Cmd
+   * - Keyboard shortcut activation: Alt + Shift
    * - Hierarchical tree display of UIComponent elements
    * - Keyboard navigation (arrow keys, Enter, Escape)
    * - Collapsible/expandable tree nodes
@@ -2238,7 +2238,7 @@
    * - Follows established CSS custom property conventions
    *
    * Usage:
-   * - Press Alt + Shift + Cmd to open/close the tree view
+   * - Press Alt + Shift to open/close the tree view
    * - Use arrow keys to navigate within the tree
    * - Press Enter to open component files
    */
@@ -2407,7 +2407,7 @@
     }
 
     /**
-     * Initialize keyboard shortcut listener for Alt+Shift+Cmd
+     * Initialize keyboard shortcut listener for Alt+Shift
      */
     initializeKeyboardShortcut() {
       document.addEventListener('keydown', this.handleKeyDown);
@@ -2511,8 +2511,8 @@
      * @param {KeyboardEvent} event - Keyboard event
      */
     handleKeyDown(event) {
-      // Alt + Shift + Cmd (Meta) combination
-      if (event.altKey && event.shiftKey && event.metaKey && !event.ctrlKey) {
+      // Alt + Shift combination
+      if (event.altKey && event.shiftKey && !event.metaKey && !event.ctrlKey) {
         event.preventDefault();
         this.toggle();
       }
