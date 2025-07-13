@@ -4978,7 +4978,7 @@
         // Use a small delay to ensure DOM is ready and avoid blocking initialization
         setTimeout(() => {
           this.treeView.show();
-        }, 3000);
+        }, 2000);
       }
     }
 
