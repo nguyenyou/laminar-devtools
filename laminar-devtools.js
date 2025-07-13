@@ -78,6 +78,7 @@
    * @property {boolean} enableHierarchicalTooltips - Enable hierarchical tooltips
    * @property {boolean} componentTreeAutoOpen - Auto-open component tree on page load
    * @property {boolean} viewportVisibilityFilter - Filter tree nodes based on viewport visibility
+   * @property {boolean} initialIsOpen - Open devtools panel by default when page loads
    */
 
   /**
@@ -86,6 +87,7 @@
    * @property {number} [hierarchicalTooltipParentCount] - Number of parent components to show
    * @property {boolean} [componentTreeAutoOpen] - Auto-open component tree on page load
    * @property {boolean} [viewportVisibilityFilter] - Filter tree nodes based on viewport visibility
+   * @property {boolean} [initialIsOpen] - Open devtools panel by default when page loads
    * @property {Partial<DevtoolsOptions>} [options] - Devtools options
    */
 
@@ -377,6 +379,9 @@
 
   /** @type {string} Local storage key for viewport visibility filter setting */
   const VIEWPORT_VISIBILITY_FILTER_KEY = "devtools_viewport_visibility_filter";
+
+  /** @type {string} Local storage key for initial panel open setting */
+  const INITIAL_IS_OPEN_KEY = "devtools_initial_is_open";
 
   /** @type {number} Default number of parent components to show in hierarchical tooltip */
   const DEFAULT_EXTRA_INFO_COUNT = 5;
@@ -5105,7 +5110,7 @@
         flex: 1;
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: space-between;
       `;
 
       const viewportFilterToggle = document.createElement('input');
@@ -5132,6 +5137,47 @@
       viewportFilterLabel.appendChild(viewportFilterToggle);
       viewportFilterContainer.appendChild(viewportFilterLabel);
       this.settingsPanel.appendChild(viewportFilterContainer);
+
+      // Create initial is open setting
+      const initialIsOpenContainer = document.createElement('div');
+      initialIsOpenContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      `;
+
+      const initialIsOpenLabel = document.createElement('label');
+      initialIsOpenLabel.textContent = 'Open by default';
+      initialIsOpenLabel.title = 'Automatically open the devtools panel when the page loads';
+      initialIsOpenLabel.style.cssText = `
+        color: var(--tree-text-color);
+        font-size: 12px;
+        cursor: pointer;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      `;
+
+      const initialIsOpenToggle = document.createElement('input');
+      initialIsOpenToggle.type = 'checkbox';
+      initialIsOpenToggle.checked = this.devtoolsSystem.options.initialIsOpen;
+      initialIsOpenToggle.style.cssText = `
+        margin-left: 8px;
+        cursor: pointer;
+      `;
+
+      // Add change handler for initial is open toggle
+      initialIsOpenToggle.addEventListener('change', (e) => {
+        const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
+        this.devtoolsSystem.options.initialIsOpen = enabled;
+        localStorage.setItem(INITIAL_IS_OPEN_KEY, enabled.toString());
+      });
+
+      initialIsOpenLabel.appendChild(initialIsOpenToggle);
+      initialIsOpenContainer.appendChild(initialIsOpenLabel);
+      this.settingsPanel.appendChild(initialIsOpenContainer);
 
       // Add to panel
       if (this.panelElement) {
@@ -5351,6 +5397,7 @@
         enableHierarchicalTooltips: true,
         componentTreeAutoOpen: getComponentTreeAutoOpen(),
         viewportVisibilityFilter: getViewportVisibilityFilter(),
+        initialIsOpen: getInitialIsOpen(),
         ...options
       };
 
@@ -5367,8 +5414,16 @@
       // Event listeners are already set up by EventManager
       console.log('DevtoolsSystem initialized with class-based architecture');
 
-      // Auto-open component tree if configured
+      // Auto-open component tree if configured (legacy setting)
       if (this.options.componentTreeAutoOpen) {
+        // Use a small delay to ensure DOM is ready and avoid blocking initialization
+        setTimeout(() => {
+          this.treeView.show();
+        }, 100);
+      }
+
+      // Auto-open panel if initial is open setting is enabled
+      if (this.options.initialIsOpen) {
         // Use a small delay to ensure DOM is ready and avoid blocking initialization
         setTimeout(() => {
           this.treeView.show();
@@ -5500,6 +5555,7 @@
         hierarchicalTooltipParentCount: getExtraInfoTooltipCount(),
         componentTreeAutoOpen: getComponentTreeAutoOpen(),
         viewportVisibilityFilter: getViewportVisibilityFilter(),
+        initialIsOpen: getInitialIsOpen(),
         options: { ...this.options }
       };
     }
@@ -5526,6 +5582,11 @@
       if (typeof config.viewportVisibilityFilter === 'boolean') {
         localStorage.setItem(VIEWPORT_VISIBILITY_FILTER_KEY, config.viewportVisibilityFilter.toString());
         this.options.viewportVisibilityFilter = config.viewportVisibilityFilter;
+      }
+
+      if (typeof config.initialIsOpen === 'boolean') {
+        localStorage.setItem(INITIAL_IS_OPEN_KEY, config.initialIsOpen.toString());
+        this.options.initialIsOpen = config.initialIsOpen;
       }
 
       if (config.options) {
@@ -5677,6 +5738,15 @@
    */
   function getViewportVisibilityFilter() {
     const stored = window.localStorage.getItem(VIEWPORT_VISIBILITY_FILTER_KEY);
+    return stored === "true";
+  }
+
+  /**
+   * Get the configured initial panel open setting
+   * @returns {boolean} Whether to open devtools panel by default when page loads
+   */
+  function getInitialIsOpen() {
+    const stored = window.localStorage.getItem(INITIAL_IS_OPEN_KEY);
     return stored === "true";
   }
 
