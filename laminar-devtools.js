@@ -2915,7 +2915,6 @@
         border-radius: var(--tree-panel-border-radius) var(--tree-panel-border-radius) 0 0;
         position: relative;
         cursor: var(--tree-drag-cursor);
-        padding-top: 6px;
         user-select: none;
         -webkit-user-select: none;
         -moz-user-select: none;
@@ -4249,89 +4248,43 @@
     addResizeHandles() {
       if (!this.panelElement) return;
 
-      // Create resize handles for all edges and corners
-      const handles = [
-        { position: 'top', cursor: 'n-resize' },
-        { position: 'right', cursor: 'e-resize' },
-        { position: 'bottom', cursor: 's-resize' },
-        { position: 'left', cursor: 'w-resize' },
-        { position: 'top-left', cursor: 'nw-resize' },
-        { position: 'top-right', cursor: 'ne-resize' },
-        { position: 'bottom-left', cursor: 'sw-resize' },
-        { position: 'bottom-right', cursor: 'se-resize' }
-      ];
+      // Remove any existing handles (in case this is called after a refresh)
+      const existing = this.panelElement.querySelectorAll('.devtools-tree-resize-handle');
+      existing.forEach(el => el.remove());
 
-      handles.forEach(handle => {
-        const resizeHandle = document.createElement('div');
-        resizeHandle.className = `devtools-tree-resize-handle devtools-tree-resize-${handle.position}`;
-        resizeHandle.dataset.direction = handle.position;
+      // Create a single bottom-right resize control
+      const handle = document.createElement('div');
+      handle.className = 'devtools-tree-resize-handle devtools-tree-resize-bottom-right';
+      handle.dataset.direction = 'bottom-right';
 
-        // Base styles for all handles
-        let handleStyles = `
-          position: absolute;
-          background: var(--tree-resize-handle-color);
-          transition: background-color 0.15s ease;
-          z-index: 1;
-        `;
+      // Style: curved L-shape line with extra gap, thicker & lighter border for visibility
+      handle.style.cssText = `
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        right: 6px;               /* gap from outer edge */
+        bottom: 6px;              /* gap from outer edge */
+        cursor: se-resize;
+        background: transparent;
+        box-sizing: border-box;
+        border-right: 2px solid rgba(240, 246, 252, 0.2);
+        border-bottom: 2px solid rgba(240, 246, 252, 0.2);
+        border-bottom-right-radius: var(--tree-panel-border-radius);
+        pointer-events: auto;
+        transition: border-color 0.15s ease;
+      `;
 
-        // Position-specific styles
-        if (handle.position === 'top' || handle.position === 'bottom') {
-          handleStyles += `
-            left: var(--tree-resize-handle-size);
-            right: var(--tree-resize-handle-size);
-            height: var(--tree-resize-handle-size);
-            cursor: ${handle.cursor};
-          `;
-          if (handle.position === 'top') {
-            handleStyles += 'top: 0;';
-          } else {
-            handleStyles += 'bottom: 0;';
-          }
-        } else if (handle.position === 'left' || handle.position === 'right') {
-          handleStyles += `
-            top: var(--tree-resize-handle-size);
-            bottom: var(--tree-resize-handle-size);
-            width: var(--tree-resize-handle-size);
-            cursor: ${handle.cursor};
-          `;
-          if (handle.position === 'left') {
-            handleStyles += 'left: 0;';
-          } else {
-            handleStyles += 'right: 0;';
-          }
-        } else {
-          // Corner handles
-          handleStyles += `
-            width: var(--tree-resize-handle-size);
-            height: var(--tree-resize-handle-size);
-            cursor: ${handle.cursor};
-          `;
-          if (handle.position.includes('top')) {
-            handleStyles += 'top: 0;';
-          } else {
-            handleStyles += 'bottom: 0;';
-          }
-          if (handle.position.includes('left')) {
-            handleStyles += 'left: 0;';
-          } else {
-            handleStyles += 'right: 0;';
-          }
-        }
-
-        resizeHandle.style.cssText = handleStyles;
-
-        // Add hover effect
-        resizeHandle.addEventListener('mouseenter', () => {
-          resizeHandle.style.background = 'var(--tree-resize-handle-hover-color)';
-        });
-        resizeHandle.addEventListener('mouseleave', () => {
-          resizeHandle.style.background = 'var(--tree-resize-handle-color)';
-        });
-
-        if (this.panelElement) {
-          this.panelElement.appendChild(resizeHandle);
-        }
+      // Hover feedback – make even lighter / brighter
+      handle.addEventListener('mouseenter', () => {
+        handle.style.borderRightColor = 'rgba(240, 246, 252, 0.85)';
+        handle.style.borderBottomColor = 'rgba(240, 246, 252, 0.85)';
       });
+      handle.addEventListener('mouseleave', () => {
+        handle.style.borderRightColor = 'rgba(240, 246, 252, 0.2)';
+        handle.style.borderBottomColor = 'rgba(240, 246, 252, 0.2)';
+      });
+
+      this.panelElement.appendChild(handle);
     }
 
     /**
